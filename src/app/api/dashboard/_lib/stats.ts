@@ -1,0 +1,22 @@
+import "server-only";
+import { prisma } from "@/lib/prisma";
+
+export async function getApprovalStats() {
+  const [pending, approved, rejected, durations] = await Promise.all([
+    prisma.submission.count({ where: { status: { in: ["WAITING_UNIT_MANAGER", "WAITING_CONSIDERATION", "WAITING_APPROVAL", "WAITING_FINANCE", "NEEDS_REVISION"] } } }),
+    prisma.submission.count({ where: { status: "APPROVED" } }),
+    prisma.submission.count({ where: { status: "REJECTED" } }),
+    prisma.$queryRaw<Array<{ averageMilliseconds: number | null }>>`
+      SELECT AVG(EXTRACT(EPOCH FROM ("decidedAt" - "submittedAt")) * 1000) AS "averageMilliseconds"
+      FROM "Submission"
+      WHERE "submittedAt" IS NOT NULL AND "decidedAt" IS NOT NULL
+    `,
+  ]);
+
+  return {
+    pending,
+    approved,
+    rejected,
+    averageApprovalMilliseconds: durations[0]?.averageMilliseconds ?? null,
+  };
+}
