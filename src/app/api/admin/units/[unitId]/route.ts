@@ -1,7 +1,7 @@
 import { assertSameOrigin, handleApi, parseJson } from "@/lib/http";
 import { requireRole } from "@/lib/authorization";
-import { updateUnitSchema } from "../_lib/schema";
-import { updateUnit } from "../_lib/service";
+import { updateUnitSchema } from "@/app/(app)/admin/units/_lib/schema";
+import { updateUnit } from "@/app/(app)/admin/units/_lib/service";
 
 type RouteContext = { params: Promise<{ unitId: string }> };
 
