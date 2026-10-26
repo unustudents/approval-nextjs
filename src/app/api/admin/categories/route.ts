@@ -1,7 +1,7 @@
 import { assertSameOrigin, handleApi, parseJson } from "@/lib/http";
 import { requireRole } from "@/lib/authorization";
-import { createCategorySchema } from "./_lib/schema";
-import { createCategory, listCategories } from "./_lib/service";
+import { createCategorySchema } from "@/app/(app)/admin/categories/_lib/schema";
+import { createCategory, listCategories } from "@/app/(app)/admin/categories/_lib/service";
 
 export async function GET() {
   return handleApi(async () => {
