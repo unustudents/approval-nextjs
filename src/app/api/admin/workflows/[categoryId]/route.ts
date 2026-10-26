@@ -1,7 +1,7 @@
 import { assertSameOrigin, handleApi, parseJson } from "@/lib/http";
 import { requireRole } from "@/lib/authorization";
-import { workflowInputSchema } from "../_lib/schema";
-import { replaceWorkflow } from "../_lib/service";
+import { workflowInputSchema } from "@/app/(app)/admin/workflows/_lib/schema";
+import { replaceWorkflow } from "@/app/(app)/admin/workflows/_lib/service";
 
 type RouteContext = { params: Promise<{ categoryId: string }> };
 
