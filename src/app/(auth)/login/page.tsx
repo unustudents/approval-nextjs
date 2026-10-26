@@ -27,8 +27,7 @@ export default function LoginPage() {
         username: username.trim(),
         password,
       });
-      router.push("/dashboard");
-      router.refresh();
+      router.replace("/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {

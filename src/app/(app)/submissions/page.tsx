@@ -127,7 +127,7 @@ export default function SubmissionsPage() {
     return "Sedang Diproses";
   }
 
-  const isRequester = user?.roles.includes("REQUESTER") || user?.roles.includes("SUPERADMIN");
+  const isRequester = user?.roles.includes("REQUESTER") || user?.roles.includes("UNIT_MANAGER") || user?.roles.includes("SUPERADMIN");
   const canSeeRequesterColumn = user !== null && !user.roles.every((role) => role === "REQUESTER");
 
   return (

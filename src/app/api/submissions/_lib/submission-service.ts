@@ -112,6 +112,7 @@ async function loadAccessibleSubmission(user: SessionUser, id: string) {
 
 export async function createDraft(user: SessionUser, input: {
   categoryId: string;
+  unitId?: string;
   items: Array<{
     name: string;
     quantity: number;
@@ -120,7 +121,19 @@ export async function createDraft(user: SessionUser, input: {
     specification: string;
   }>;
 }) {
-  if (!hasRole(user, "REQUESTER") || !user.unitId) throw forbidden();
+  let requestingUnitId: string;
+  if (hasRole(user, "UNIT_MANAGER")) {
+    if (!input.unitId) throw conflict("Pilih unit kerja yang akan mengajukan pengadaan");
+    const managedUnit = await prisma.unit.findFirst({
+      where: { id: input.unitId, managerId: user.id, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!managedUnit) throw forbidden();
+    requestingUnitId = managedUnit.id;
+  } else {
+    if (!hasRole(user, "REQUESTER") || !user.unitId) throw forbidden();
+    requestingUnitId = user.unitId;
+  }
 
   const category = await prisma.category.findFirst({
     where: { id: input.categoryId, status: "ACTIVE" },
@@ -133,7 +146,7 @@ export async function createDraft(user: SessionUser, input: {
     data: {
       number,
       requesterId: user.id,
-      unitId: user.unitId,
+      unitId: requestingUnitId,
       categoryId: input.categoryId,
       items: { create: itemData(input.items) },
     },
@@ -141,6 +154,15 @@ export async function createDraft(user: SessionUser, input: {
   });
 
   return submission;
+}
+
+export async function listManagedUnits(user: SessionUser) {
+  if (!hasRole(user, "UNIT_MANAGER")) throw forbidden();
+  return prisma.unit.findMany({
+    where: { managerId: user.id, status: "ACTIVE" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 export async function submitDraft(user: SessionUser, id: string) {
@@ -154,17 +176,20 @@ export async function submitDraft(user: SessionUser, id: string) {
   if (current.status !== "DRAFT") throw conflict("Hanya draft yang dapat dikirim");
   if (current.items.length === 0) throw conflict("Pengajuan harus memiliki minimal satu barang");
 
-  const steps = current.category.workflow?.steps ?? [];
-  if (current.category.status !== "ACTIVE" || current.category.workflow?.status !== "ACTIVE" || steps.length < 2) {
+  const configuredSteps = current.category.workflow?.steps ?? [];
+  if (current.category.status !== "ACTIVE" || current.category.workflow?.status !== "ACTIVE" || configuredSteps.length < 2) {
     throw conflict("Workflow aktif belum dikonfigurasi untuk kategori ini");
   }
-  if (steps[0].targetType !== "UNIT_MANAGER" || steps[0].type !== "APPROVAL") {
+  if (configuredSteps[0].targetType !== "UNIT_MANAGER" || configuredSteps[0].type !== "APPROVAL") {
     throw conflict("Tahap pertama workflow harus berupa approval Manager Unit");
   }
-  if (steps.at(-1)?.type !== "APPROVAL") {
+  if (configuredSteps.at(-1)?.type !== "APPROVAL") {
     throw conflict("Tahap terakhir workflow harus berupa approval");
   }
-  if (!current.unit.managerId) throw conflict("Unit pemohon belum memiliki Manager Unit");
+  const managerIsRequester = hasRole(user, "UNIT_MANAGER");
+  if (!managerIsRequester && !current.unit.managerId) throw conflict("Unit pemohon belum memiliki Manager Unit");
+  const steps = managerIsRequester ? configuredSteps.slice(1) : configuredSteps;
+  if (!steps.length) throw conflict("Workflow tidak memiliki tahap approval setelah Manager Unit");
 
   const initialRows = steps.map((step) => {
     let targetUserId = step.targetUserId;
@@ -187,7 +212,7 @@ export async function submitDraft(user: SessionUser, id: string) {
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.submission.updateMany({
       where: { id, requesterId: user.id, status: "DRAFT" },
-      data: { status: "WAITING_UNIT_MANAGER", submittedAt: new Date() },
+      data: { status: statusForStep(first), submittedAt: new Date() },
     });
     if (updated.count !== 1) throw conflict("Pengajuan sudah berubah oleh proses lain");
 
@@ -195,7 +220,7 @@ export async function submitDraft(user: SessionUser, id: string) {
     const currentStep = await tx.submissionStep.findUniqueOrThrow({ where: { submissionId_order: { submissionId: id, order: first.order } } });
     await tx.submission.update({ where: { id }, data: { currentStepId: currentStep.id } });
     await tx.approvalAction.create({
-      data: { submissionId: id, actorId: user.id, submissionStepId: currentStep.id, action: "SUBMITTED", resultingStatus: "WAITING_UNIT_MANAGER" },
+      data: { submissionId: id, actorId: user.id, submissionStepId: currentStep.id, action: "SUBMITTED", resultingStatus: statusForStep(first) },
     });
     await notifyStep(tx, id, current.number, first);
 
@@ -213,9 +238,7 @@ export async function listSubmissions(user: SessionUser, filters: {
 }) {
   const accessFilter: Prisma.SubmissionWhereInput = hasRole(user, "SUPERADMIN") || hasRole(user, "GENERAL_AFFAIRS")
     ? {}
-    : hasRole(user, "REQUESTER")
-      ? { requesterId: user.id }
-      : { workflowSteps: { some: { OR: [{ targetUserId: user.id }, { targetType: "ROLE", targetRole: { in: user.roles } }] } } };
+    : { OR: [{ requesterId: user.id }, { workflowSteps: { some: { OR: [{ targetUserId: user.id }, { targetType: "ROLE", targetRole: { in: user.roles } }] } } }] };
 
   const searchFilter: Prisma.SubmissionWhereInput = filters.q
     ? { OR: [

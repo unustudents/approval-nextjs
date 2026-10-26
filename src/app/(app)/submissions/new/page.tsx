@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
+import { useCurrentUser } from "@/app/(app)/_components/AppShell";
 import { ItemRowInputs, ItemInput } from "./_components/ItemRowInputs";
 
 interface CategoryOption {
@@ -20,9 +21,18 @@ interface CategoryOption {
   name: string;
 }
 
+interface ManagedUnitOption {
+  id: string;
+  name: string;
+}
+
 export default function NewSubmissionPage() {
   const router = useRouter();
+  const user = useCurrentUser();
+  const isManager = user?.roles.includes("UNIT_MANAGER") ?? false;
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [managedUnits, setManagedUnits] = useState<ManagedUnitOption[]>([]);
+  const [requestingUnitId, setRequestingUnitId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [items, setItems] = useState<ItemInput[]>([
     {
@@ -42,10 +52,22 @@ export default function NewSubmissionPage() {
   useEffect(() => {
     async function init() {
       try {
-        const catList = await api.get<CategoryOption[]>("/api/categories");
+        const [catList, unitList] = await Promise.all([
+          api.get<CategoryOption[]>("/api/categories"),
+          isManager
+            ? api.get<ManagedUnitOption[]>("/api/submissions/create-options")
+            : Promise.resolve([]),
+        ]);
         setCategories(catList);
+        setManagedUnits(unitList);
         if (catList.length > 0) {
           setCategoryId(catList[0].id);
+        }
+        if (unitList.length === 1) {
+          setRequestingUnitId(unitList[0].id);
+        }
+        if (isManager && unitList.length === 0) {
+          setErrorMsg("Anda belum ditetapkan sebagai Manager pada unit kerja aktif.");
         }
       } catch (err) {
         console.error("Gagal inisialisasi form pengajuan", err);
@@ -54,13 +76,13 @@ export default function NewSubmissionPage() {
       }
     }
     init();
-  }, []);
+  }, [isManager]);
 
   function handleAddItem() {
     setItems((prev) => [
       ...prev,
       {
-        id: String(Date.now()),
+        id: String(performance.now()),
         name: "",
         quantity: 1,
         unitPrice: 0,
@@ -122,6 +144,10 @@ export default function NewSubmissionPage() {
       setErrorMsg("Pilih kategori pengajuan");
       return;
     }
+    if (isManager && !requestingUnitId) {
+      setErrorMsg("Pilih unit kerja yang akan mengajukan pengadaan");
+      return;
+    }
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (!it.name.trim()) {
@@ -143,6 +169,7 @@ export default function NewSubmissionPage() {
     try {
       const created = await api.post<{ id: string }>("/api/submissions", {
         categoryId,
+        ...(isManager ? { unitId: requestingUnitId } : {}),
         items: items.map((it) => ({
           name: it.name.trim(),
           quantity: Number(it.quantity),
@@ -235,6 +262,35 @@ export default function NewSubmissionPage() {
             yang bertugas.
           </p>
         </div>
+
+        {isManager && (
+          <div>
+            <label
+              htmlFor="requesting-unit"
+              className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+            >
+              Unit Pemohon <span className="text-rose-500">*</span>
+            </label>
+            <select
+              id="requesting-unit"
+              required
+              value={requestingUnitId}
+              onChange={(event) => setRequestingUnitId(event.target.value)}
+              aria-describedby="requesting-unit-help"
+              className="w-full sm:max-w-md px-3 py-2 border border-slate-300 rounded-md text-xs focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white transition-colors"
+            >
+              <option value="">Pilih unit kerja</option>
+              {managedUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.name}
+                </option>
+              ))}
+            </select>
+            <p id="requesting-unit-help" className="text-[11px] text-slate-400 mt-1">
+              Pengajuan Manager langsung diteruskan ke tahap approval berikutnya.
+            </p>
+          </div>
+        )}
 
         <ItemRowInputs
           items={items}

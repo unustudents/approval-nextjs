@@ -72,7 +72,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {(hasRole("REQUESTER") || hasRole("SUPERADMIN")) && (
+          {(hasRole("REQUESTER") || hasRole("UNIT_MANAGER") || hasRole("SUPERADMIN")) && (
             <Link
               href="/submissions/new"
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-semibold text-white bg-[#1E3A5F] hover:bg-[#152a45] shadow-xs transition-colors cursor-pointer"

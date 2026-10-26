@@ -58,11 +58,11 @@ export function AppShell({
   initialUser,
 }: {
   children: React.ReactNode;
-  initialUser?: CurrentUser | null;
+  initialUser: CurrentUser;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<CurrentUser | null>(initialUser ?? null);
+  const user = initialUser;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -70,36 +70,6 @@ export function AppShell({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
   const lastNotifFetchRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (initialUser !== undefined) {
-      setUser(initialUser);
-    }
-  }, [initialUser]);
-
-  useEffect(() => {
-    // Jangan fetch ulang session jika user sudah ada di state/context
-    if (user || initialUser) return;
-
-    let active = true;
-
-    async function loadSession() {
-      try {
-        const sessionUser = await api.get<CurrentUser>("/api/auth/session");
-        if (active) setUser(sessionUser);
-      } catch {
-        if (active && pathname !== "/login") {
-          router.replace("/login");
-        }
-      }
-    }
-
-    loadSession();
-
-    return () => {
-      active = false;
-    };
-  }, [initialUser, user, pathname, router]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -109,7 +79,7 @@ export function AppShell({
       }>("/api/notifications?pageSize=8");
       setNotifications(res.data);
       setUnreadCount(res.unreadCount);
-      lastNotifFetchRef.current = Date.now();
+      lastNotifFetchRef.current = performance.now();
     } catch {
       // silent fail for non-blocking notifications
     }
@@ -119,7 +89,7 @@ export function AppShell({
   // Memastikan badge merah langsung muncul saat user aktif bernavigasi tanpa harus klik lonceng
   useEffect(() => {
     if (!user) return;
-    if (Date.now() - lastNotifFetchRef.current > 10_000) {
+    if (performance.now() - lastNotifFetchRef.current > 10_000) {
       loadNotifications();
     }
   }, [pathname, user, loadNotifications]);
@@ -155,7 +125,7 @@ export function AppShell({
     function handleActiveEvent() {
       resetIdleTimer();
       if (document.visibilityState === "visible") {
-        if (Date.now() - lastNotifFetchRef.current > 15_000) {
+        if (performance.now() - lastNotifFetchRef.current > 15_000) {
           loadNotifications();
         }
       }
@@ -201,8 +171,7 @@ export function AppShell({
     try {
       await api.post("/api/auth/logout");
     } finally {
-      setUser(null);
-      router.push("/login");
+      router.replace("/login");
       router.refresh();
     }
   }
@@ -227,7 +196,7 @@ export function AppShell({
 
   const hasRole = (role: string) => user?.roles.includes(role) ?? false;
   const isSuperadmin = hasRole("SUPERADMIN");
-  const isRequester = hasRole("REQUESTER") || isSuperadmin;
+  const isRequester = hasRole("REQUESTER") || hasRole("UNIT_MANAGER") || isSuperadmin;
   const isApprover =
     hasRole("REQUESTER") ||
     hasRole("UNIT_MANAGER") ||

@@ -11,10 +11,11 @@ export const itemSchema = z.object({
 
 export const submissionInputSchema = z.object({
   categoryId: z.uuid(),
+  unitId: z.uuid().optional(),
   items: z.array(itemSchema).min(1).max(100),
 });
 
-export const updateSubmissionSchema = submissionInputSchema.omit({ categoryId: true });
+export const updateSubmissionSchema = submissionInputSchema.omit({ categoryId: true, unitId: true });
 
 export const actionSchema = z.object({
   action: z.enum(["APPROVE", "REJECT", "REQUEST_REVISION", "CONSIDERATION", "SKIP"]),

@@ -1,5 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
+import { cache } from "react";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 import type { Role } from "@/generated/prisma/client";
 import { unauthorized } from "@/lib/errors";
@@ -49,7 +51,8 @@ export async function destroySession() {
   cookieStore.delete(cookieName);
 }
 
-export async function getSession() {
+export const getSession = cache(async function getSession() {
+  await io();
   const cookieStore = await cookies();
   const token = cookieStore.get(cookieName)?.value;
 
@@ -73,7 +76,7 @@ export async function getSession() {
     roles: session.user.roles.map((assignment) => assignment.role),
     unitId: session.user.unitId,
   } satisfies SessionUser;
-}
+});
 
 export async function requireSession() {
   const session = await getSession();

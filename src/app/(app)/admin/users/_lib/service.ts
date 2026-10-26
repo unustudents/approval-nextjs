@@ -18,20 +18,15 @@ export async function listUsers() {
     select: {
       id: true, username: true, name: true,
       roles: { select: { role: true }, orderBy: { role: "asc" } },
-      status: true, unitId: true, unit: { select: { id: true, name: true } },
-      createdAt: true, updatedAt: true,
+      status: true, unit: { select: { id: true, name: true } },
     },
     orderBy: [{ status: "asc" }, { name: "asc" }],
     take: 500,
   });
 }
 
-export async function createUser(input: {
-  username: string; name: string; password: string; roles: UserRoleInput; unitId?: string | null;
-}) {
-  if (input.roles.includes("REQUESTER") && !input.unitId) {
-    throw conflict("Akun dengan role Kepala Unit / SPV harus ditetapkan ke unit kerja");
-  }
+export async function createUser(input: { username: string; name: string; password: string; roles: UserRoleInput; unitId?: string | null }) {
+  if (input.roles.includes("REQUESTER") && !input.unitId) throw conflict("Akun dengan role Kepala Unit / SPV harus ditetapkan ke unit kerja");
   if (input.unitId) {
     const unit = await prisma.unit.findFirst({ where: { id: input.unitId, status: "ACTIVE" }, select: { id: true } });
     if (!unit) throw notFound();
@@ -39,13 +34,11 @@ export async function createUser(input: {
   const passwordHash = await hash(input.password, 12);
   return prisma.user.create({
     data: { username: input.username, name: input.name, passwordHash, roles: { create: input.roles.map((role) => ({ role })) }, unitId: input.unitId ?? null },
-    select: { id: true, username: true, name: true, roles: { select: { role: true } }, status: true, unitId: true, createdAt: true },
+    select: { id: true },
   });
 }
 
-export async function updateUser(actor: SessionUser, id: string, input: {
-  username?: string; name?: string; password?: string; roles?: UserRoleInput; status?: "ACTIVE" | "INACTIVE"; unitId?: string | null;
-}) {
+export async function updateUser(actor: SessionUser, id: string, input: { username?: string; name?: string; password?: string; roles?: UserRoleInput; status?: "ACTIVE" | "INACTIVE"; unitId?: string | null }) {
   const target = await prisma.user.findUnique({ where: { id }, include: { managedUnits: true, roles: { select: { role: true } } } });
   if (!target) throw notFound();
   const currentRoles = target.roles.map((assignment) => assignment.role);
@@ -76,7 +69,7 @@ export async function updateUser(actor: SessionUser, id: string, input: {
     const updated = await tx.user.update({
       where: { id },
       data: { username: input.username, name: input.name, passwordHash, status: input.status, unitId: input.unitId, ...(input.roles ? { roles: { deleteMany: {}, create: input.roles.map((role) => ({ role })) } } : {}) },
-      select: { id: true, username: true, name: true, roles: { select: { role: true } }, status: true, unitId: true, updatedAt: true },
+      select: { id: true },
     });
     if (input.username || passwordHash || input.roles || input.status) await tx.session.deleteMany({ where: { userId: id } });
     return updated;

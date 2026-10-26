@@ -1,7 +1,7 @@
 import { assertSameOrigin, handleApi, parseJson } from "@/lib/http";
 import { requireRole } from "@/lib/authorization";
-import { createUserSchema } from "./_lib/schema";
-import { createUser, listUsers } from "./_lib/service";
+import { createUserSchema } from "@/app/(app)/admin/users/_lib/schema";
+import { createUser, listUsers } from "@/app/(app)/admin/users/_lib/service";
 
 export async function GET() {
   return handleApi(async () => {
