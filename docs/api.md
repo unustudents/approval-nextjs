@@ -17,7 +17,7 @@ There is no public registration endpoint. Superadmin accounts are created throug
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/api/submissions?q=&status=&page=&pageSize=` | List submissions visible to the current user |
-| POST | `/api/submissions` | Create a draft with category, purpose, and one or more items |
+| POST | `/api/submissions` | Create a draft with category and one or more items |
 | GET | `/api/submissions/{id}` | Read details, actions, revisions, and attachment metadata |
 | PATCH | `/api/submissions/{id}` | Edit a draft or a submission returned for revision |
 | POST | `/api/submissions/{id}/submit` | Submit a draft into its configured workflow |
@@ -32,9 +32,14 @@ Create and edit bodies use this shape:
 ```json
 {
   "categoryId": "uuid",
-  "purpose": "Kebutuhan operasional unit",
   "items": [
-    { "name": "Laptop", "quantity": 2, "description": "Untuk staf baru" }
+    {
+      "name": "Laptop",
+      "quantity": 2,
+      "unitPrice": 15000000,
+      "description": "Untuk staf baru",
+      "specification": "Core i7, RAM 16 GB, SSD 512 GB"
+    }
   ]
 }
 ```
@@ -68,4 +73,4 @@ Workflow replacement requires an approval step assigned to the requester's Unit 
 
 ## Local setup
 
-Copy `.env.example` to `.env`, set `DATABASE_URL`, and set a unique Superadmin password with at least 12 characters. Run `bun run db:migrate` and `bun run db:seed`. Attachments default to `./private/attachments`, outside the public directory; use persistent storage for any production deployment.
+Copy `.env.example` to `.env`, create the MySQL database named in `DATABASE_URL`, and set a unique Superadmin password with at least 12 characters. Run `bun run db:migrate` and `bun run db:seed`. Attachments default to `./private/attachments`, outside the public directory; use persistent storage for any production deployment.

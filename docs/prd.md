@@ -826,7 +826,10 @@ Minimal:
 - submissionId;
 - namaBarang;
 - jumlah;
-- keterangan.
+- hargaSatuan;
+- totalHarga (dihitung dari hargaSatuan × jumlah);
+- keterangan;
+- spesifikasi.
 
 ### Workflow
 

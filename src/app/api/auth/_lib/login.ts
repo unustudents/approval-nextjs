@@ -25,7 +25,10 @@ export async function login(username: string, password: string, networkIdentifie
     throw new AppError("Terlalu banyak percobaan login. Coba lagi nanti", 429, "RATE_LIMITED");
   }
 
-  const user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+  const user = await prisma.user.findUnique({
+    where: { username: normalizedUsername },
+    include: { roles: { select: { role: true } } },
+  });
   if (!user) dummyPasswordHash ??= hash(randomBytes(32).toString("hex"), 12);
   const passwordMatches = await compare(password, user?.passwordHash ?? await dummyPasswordHash!);
 
@@ -48,7 +51,7 @@ export async function login(username: string, password: string, networkIdentifie
     id: user.id,
     username: user.username,
     name: user.name,
-    role: user.role,
+    roles: user.roles.map((assignment) => assignment.role),
     unitId: user.unitId,
   };
 }

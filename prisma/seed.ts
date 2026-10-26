@@ -1,12 +1,27 @@
 import "dotenv/config";
 import { hash } from "bcryptjs";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-const connectionString =
-  process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL ?? "";
+const connectionString = process.env.DATABASE_URL ?? "";
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required");
+}
+
+const url = new URL(connectionString);
+if (url.protocol !== "mysql:" || !url.pathname.slice(1)) {
+  throw new Error("DATABASE_URL must be a MySQL URL with a database name");
+}
+
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
+  adapter: new PrismaMariaDb({
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.slice(1),
+    connectionLimit: 1,
+  }),
 });
 
 const username = process.env.SUPERADMIN_USERNAME?.trim().toLowerCase();
@@ -27,11 +42,11 @@ await prisma.user.upsert({
   update: {
     passwordHash,
     name,
-    role: "SUPERADMIN",
+    roles: { deleteMany: {}, create: [{ role: "SUPERADMIN" }] },
     status: "ACTIVE",
     unitId: null,
   },
-  create: { username, passwordHash, name, role: "SUPERADMIN" },
+  create: { username, passwordHash, name, roles: { create: [{ role: "SUPERADMIN" }] } },
 });
 
 const categoryNames = [

@@ -40,7 +40,7 @@ export async function replaceWorkflow(categoryId: string, input: {
 
   const roleTargets = new Set(input.steps.flatMap((step) => step.targetType === "ROLE" && step.targetRole ? [step.targetRole] : []));
   for (const role of roleTargets) {
-    const count = await prisma.user.count({ where: { role, status: "ACTIVE" } });
+    const count = await prisma.user.count({ where: { roles: { some: { role } }, status: "ACTIVE" } });
     if (count === 0) throw conflict(`Belum ada pengguna aktif dengan role ${role}`);
   }
   const userTargets = input.steps.flatMap((step) => step.targetType === "USER" && step.targetUserId ? [step.targetUserId] : []);

@@ -2,15 +2,13 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-} from "@aws-sdk/client-s3";
 import { AppError, conflict, forbidden, notFound } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
+import {
+  attachmentStorageDirectory,
+  attachmentStoragePath,
+} from "./attachment-storage";
 import { getSubmission } from "./submission-service";
 
 const allowedTypes = new Map([
@@ -21,50 +19,11 @@ const allowedTypes = new Map([
 const maxAttachmentCount = 10;
 const defaultMaxBytes = 10 * 1024 * 1024;
 const absoluteMaxBytes = 25 * 1024 * 1024;
-const bucketName = process.env.NEON_STORAGE_BUCKET || "assets";
-
-function getS3Client() {
-  if (!process.env.AWS_ENDPOINT_URL_S3 || !process.env.AWS_ACCESS_KEY_ID) {
-    return null;
-  }
-  return new S3Client({
-    region: process.env.AWS_REGION || "ap-southeast-1",
-    endpoint: process.env.AWS_ENDPOINT_URL_S3,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
-    },
-    forcePathStyle: true,
-  });
-}
-
 function maxBytes() {
   const configured = Number(process.env.ATTACHMENT_MAX_BYTES);
   if (!Number.isSafeInteger(configured) || configured <= 0)
     return defaultMaxBytes;
   return Math.min(configured, absoluteMaxBytes);
-}
-
-function storageDirectory() {
-  const directory = path.resolve(
-    /*turbopackIgnore: true*/ process.env.ATTACHMENT_STORAGE_DIR ??
-      path.join(process.cwd(), "private", "attachments"),
-  );
-  const publicDirectory = path.resolve(process.cwd(), "public");
-  const relative = path.relative(publicDirectory, directory);
-  if (
-    relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) &&
-      relative !== ".." &&
-      !path.isAbsolute(relative))
-  ) {
-    throw new AppError(
-      "Penyimpanan lampiran tidak boleh berada di dalam public",
-      500,
-      "INVALID_STORAGE_CONFIG",
-    );
-  }
-  return directory;
 }
 
 function hasValidSignature(mimeType: string, bytes: Uint8Array) {
@@ -124,33 +83,17 @@ export async function storeAttachment(
     );
 
   const storageKey = `attachments/${submissionId}/${randomUUID()}${extension}`;
-  const s3 = getS3Client();
-
-  if (s3) {
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: bucketName,
-        Key: storageKey,
-        Body: Buffer.from(bytes),
-        ContentType: file.type,
-      }),
-    );
-  } else {
-    const directory = storageDirectory();
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    const fullPath = path.join(
-      /*turbopackIgnore: true*/ directory,
-      path.basename(storageKey),
-    );
-    const handle = await open(/*turbopackIgnore: true*/ fullPath, "wx", 0o600);
-    try {
-      await handle.writeFile(bytes);
-      await handle.close();
-    } catch (err) {
-      await handle.close().catch(() => undefined);
-      await unlink(fullPath).catch(() => undefined);
-      throw err;
-    }
+  const directory = attachmentStorageDirectory();
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const fullPath = attachmentStoragePath(storageKey);
+  const handle = await open(/*turbopackIgnore: true*/ fullPath, "wx", 0o600);
+  try {
+    await handle.writeFile(bytes);
+    await handle.close();
+  } catch (err) {
+    await handle.close().catch(() => undefined);
+    await unlink(fullPath).catch(() => undefined);
+    throw err;
   }
 
   try {
@@ -196,11 +139,7 @@ export async function storeAttachment(
 
     return attachment;
   } catch (error) {
-    if (s3) {
-      await s3
-        .send(new DeleteObjectCommand({ Bucket: bucketName, Key: storageKey }))
-        .catch(() => undefined);
-    }
+    await unlink(fullPath).catch(() => undefined);
     throw error;
   }
 }
@@ -222,32 +161,9 @@ export async function readAttachment(
   });
   if (!record) throw notFound();
 
-  const s3 = getS3Client();
-  if (s3) {
-    try {
-      const res = await s3.send(
-        new GetObjectCommand({
-          Bucket: bucketName,
-          Key: record.storageKey,
-        }),
-      );
-      const byteArray = await res.Body!.transformToByteArray();
-      return {
-        bytes: Buffer.from(byteArray),
-        filename: attachment.originalFilename,
-        mimeType: attachment.mimeType,
-      };
-    } catch {
-      throw notFound();
-    }
-  }
-
   try {
     const bytes = await readFile(
-      /*turbopackIgnore: true*/ path.join(
-        /*turbopackIgnore: true*/ storageDirectory(),
-        path.basename(record.storageKey),
-      ),
+      /*turbopackIgnore: true*/ attachmentStoragePath(record.storageKey),
     );
     return {
       bytes,

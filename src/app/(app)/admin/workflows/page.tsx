@@ -49,7 +49,7 @@ interface UserCandidate {
   id: string;
   name: string;
   username: string;
-  role: string;
+  roles: Array<{ role: string }>;
   status: string;
 }
 
@@ -498,7 +498,7 @@ function AdminWorkflowsContent() {
                               <option value="">(Pilih pengguna)</option>
                               {users.map((u) => (
                                 <option key={u.id} value={u.id}>
-                                  {u.name} ({roleDisplayName(u.role)})
+                                  {u.name} ({u.roles.map(({ role }) => roleDisplayName(role)).join(", ")})
                                 </option>
                               ))}
                             </select>

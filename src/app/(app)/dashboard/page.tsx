@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PlusCircle, Inbox, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { useCurrentUser } from "@/components/AppShell";
+import { useCurrentUser } from "@/app/(app)/_components/AppShell";
 import {
   DashboardStatsCards,
   DashboardStats,
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   >([]);
   const [inboxCount, setInboxCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const hasRole = (role: string) => user?.roles.includes(role) ?? false;
 
   useEffect(() => {
     let active = true;
@@ -38,10 +39,7 @@ export default function DashboardPage() {
         setRecentSubmissions(submissionsRes.data ?? []);
 
         if (
-          user?.role === "UNIT_MANAGER" ||
-          user?.role === "CONSIDERATION" ||
-          user?.role === "FINANCE_APPROVER" ||
-          user?.role === "SUPERADMIN"
+          hasRole("REQUESTER") || hasRole("UNIT_MANAGER") || hasRole("CONSIDERATION") || hasRole("FINANCE_APPROVER") || hasRole("SUPERADMIN")
         ) {
           const inboxRes = await api.get<unknown[]>("/api/approvals/inbox");
           if (active) setInboxCount(inboxRes.length);
@@ -74,7 +72,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {(user?.role === "REQUESTER" || user?.role === "SUPERADMIN") && (
+          {(hasRole("REQUESTER") || hasRole("SUPERADMIN")) && (
             <Link
               href="/submissions/new"
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-semibold text-white bg-[#1E3A5F] hover:bg-[#152a45] shadow-xs transition-colors cursor-pointer"
@@ -84,10 +82,7 @@ export default function DashboardPage() {
             </Link>
           )}
 
-          {(user?.role === "UNIT_MANAGER" ||
-            user?.role === "CONSIDERATION" ||
-            user?.role === "FINANCE_APPROVER" ||
-            user?.role === "SUPERADMIN") && (
+          {(hasRole("REQUESTER") || hasRole("UNIT_MANAGER") || hasRole("CONSIDERATION") || hasRole("FINANCE_APPROVER") || hasRole("SUPERADMIN")) && (
             <Link
               href="/inbox"
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 shadow-xs transition-colors cursor-pointer"

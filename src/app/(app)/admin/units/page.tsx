@@ -23,7 +23,7 @@ interface AdminUnitItem {
 interface ManagerCandidate {
   id: string;
   name: string;
-  role: string;
+  roles: Array<{ role: string }>;
   status: string;
 }
 
@@ -56,7 +56,7 @@ export default function AdminUnitsPage() {
         setUnits(unitList);
         setManagers(
           userList.filter(
-            (u) => u.role === "UNIT_MANAGER" && u.status === "ACTIVE",
+            (u) => u.roles.some(({ role }) => role === "UNIT_MANAGER") && u.status === "ACTIVE",
           ),
         );
       } catch (err) {

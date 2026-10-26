@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 enum Role {
@@ -54,6 +54,9 @@ enum ApprovalActionType {
   REJECTED
   REVISION_REQUESTED
   CONSIDERATION_GIVEN
+  CONSIDERATION_REQUESTED
+  EXPLANATION_REQUESTED
+  EXPLANATION_GIVEN
   RESUBMITTED
   SUBMITTED
   EDITED
@@ -65,14 +68,24 @@ enum NotificationType {
   STATUS_CHANGED
 }
 
+enum ConsiderationRequestStatus {
+  PENDING
+  RESPONDED
+}
+
+enum ExplanationRequestStatus {
+  PENDING
+  ANSWERED
+}
+
 model User {
-  id              String               @id @default(uuid()) @db.Uuid
+  id              String               @id @default(uuid())
   username        String               @unique @db.VarChar(50)
   passwordHash    String
   name            String               @db.VarChar(160)
-  role            Role
+  roles           UserRole[]
   status          RecordStatus         @default(ACTIVE)
-  unitId          String?              @db.Uuid
+  unitId          String?
   unit            Unit?                @relation("UnitMembers", fields: [unitId], references: [id], onDelete: Restrict)
   managedUnits    Unit[]               @relation("UnitManager")
   sessions        Session[]
@@ -83,16 +96,30 @@ model User {
   runStepTargets  SubmissionStep[]
   revisions       SubmissionRevision[]
   uploadedFiles   Attachment[]
+  requestedConsiderations ConsiderationRequest[] @relation("ConsiderationRequestedBy")
+  receivedConsiderations  ConsiderationRequest[] @relation("ConsiderationRecipient")
+  requestedExplanations   ExplanationRequest[] @relation("ExplanationRequestedBy")
+  receivedExplanations    ExplanationRequest[] @relation("ExplanationRecipient")
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  @@index([unitId, role, status])
+  @@index([unitId, status])
+}
+
+model UserRole {
+  userId     String
+  role       Role
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@index([role, userId])
 }
 
 model Session {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid())
   tokenHash String   @unique @db.Char(64)
-  userId    String   @db.Uuid
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -111,10 +138,10 @@ model AuthAttempt {
 }
 
 model Unit {
-  id          String       @id @default(uuid()) @db.Uuid
+  id          String       @id @default(uuid())
   name        String       @unique @db.VarChar(120)
   status      RecordStatus @default(ACTIVE)
-  managerId   String?      @db.Uuid
+  managerId   String?
   manager     User?        @relation("UnitManager", fields: [managerId], references: [id], onDelete: SetNull)
   members     User[]       @relation("UnitMembers")
   submissions Submission[]
@@ -123,7 +150,7 @@ model Unit {
 }
 
 model Category {
-  id          String       @id @default(uuid()) @db.Uuid
+  id          String       @id @default(uuid())
   name        String       @unique @db.VarChar(120)
   status      RecordStatus @default(ACTIVE)
   workflow    Workflow?
@@ -133,10 +160,10 @@ model Category {
 }
 
 model Workflow {
-  id         String         @id @default(uuid()) @db.Uuid
+  id         String         @id @default(uuid())
   name       String         @db.VarChar(120)
   status     RecordStatus   @default(ACTIVE)
-  categoryId String         @unique @db.Uuid
+  categoryId String         @unique
   category   Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   steps      WorkflowStep[]
   createdAt  DateTime       @default(now())
@@ -144,14 +171,14 @@ model Workflow {
 }
 
 model WorkflowStep {
-  id            String             @id @default(uuid()) @db.Uuid
-  workflowId    String             @db.Uuid
+  id            String             @id @default(uuid())
+  workflowId    String
   workflow      Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   order         Int
   type          WorkflowStepType
   targetType    WorkflowTargetType
   targetRole    Role?
-  targetUserId  String?            @db.Uuid
+  targetUserId  String?
   targetUser    User?              @relation("WorkflowUserTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
   required      Boolean            @default(true)
   allowRevision Boolean            @default(false)
@@ -164,17 +191,16 @@ model WorkflowStep {
 }
 
 model Submission {
-  id            String               @id @default(uuid()) @db.Uuid
+  id            String               @id @default(uuid())
   number        String               @unique @db.VarChar(32)
-  requesterId   String               @db.Uuid
+  requesterId   String
   requester     User                 @relation("RequesterSubmissions", fields: [requesterId], references: [id], onDelete: Restrict)
-  unitId        String               @db.Uuid
+  unitId        String
   unit          Unit                 @relation(fields: [unitId], references: [id], onDelete: Restrict)
-  categoryId    String               @db.Uuid
+  categoryId    String
   category      Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  purpose       String               @db.VarChar(2000)
   status        SubmissionStatus     @default(DRAFT)
-  currentStepId String?              @db.Uuid
+  currentStepId String?
   currentStep   SubmissionStep?      @relation("CurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
   items         SubmissionItem[]
   workflowSteps SubmissionStep[]     @relation("SubmissionSteps")
@@ -182,6 +208,8 @@ model Submission {
   revisions     SubmissionRevision[]
   attachments   Attachment[]
   notifications Notification[]
+  considerationRequests ConsiderationRequest[]
+  explanationRequests   ExplanationRequest[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   submittedAt   DateTime?
@@ -196,30 +224,32 @@ model Submission {
 }
 
 model SubmissionItem {
-  id           String     @id @default(uuid()) @db.Uuid
-  submissionId String     @db.Uuid
-  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  name         String     @db.VarChar(200)
-  quantity     Int
-  description  String     @db.VarChar(1000)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id            String     @id @default(uuid())
+  submissionId  String
+  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  name          String     @db.VarChar(200)
+  quantity      Int
+  unitPrice     Decimal    @default(0) @db.Decimal(15, 2)
+  description   String     @db.VarChar(1000)
+  specification String     @default("") @db.VarChar(2000)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([submissionId])
 }
 
 model SubmissionStep {
-  id             String             @id @default(uuid()) @db.Uuid
-  submissionId   String             @db.Uuid
+  id             String             @id @default(uuid())
+  submissionId   String
   submission     Submission         @relation("SubmissionSteps", fields: [submissionId], references: [id], onDelete: Cascade)
   currentFor     Submission?        @relation("CurrentStep")
-  workflowStepId String?            @db.Uuid
+  workflowStepId String?
   workflowStep   WorkflowStep?      @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   order          Int
   type           WorkflowStepType
   targetType     WorkflowTargetType
   targetRole     Role?
-  targetUserId   String?            @db.Uuid
+  targetUserId   String?
   targetUser     User?              @relation(fields: [targetUserId], references: [id], onDelete: Restrict)
   required       Boolean            @default(true)
   allowRevision  Boolean            @default(false)
@@ -235,13 +265,14 @@ model SubmissionStep {
 }
 
 model ApprovalAction {
-  id               String             @id @default(uuid()) @db.Uuid
-  submissionId     String             @db.Uuid
+  id               String             @id @default(uuid())
+  submissionId     String
   submission       Submission         @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  submissionStepId String?            @db.Uuid
+  submissionStepId String?
   submissionStep   SubmissionStep?    @relation(fields: [submissionStepId], references: [id], onDelete: SetNull)
-  actorId          String             @db.Uuid
+  actorId          String
   actor            User               @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actorRole        Role?
   action           ApprovalActionType
   note             String?            @db.VarChar(2000)
   resultingStatus  SubmissionStatus
@@ -252,13 +283,51 @@ model ApprovalAction {
   @@index([actorId, createdAt])
 }
 
+model ConsiderationRequest {
+  id          String                    @id @default(uuid())
+  submissionId String
+  submission   Submission                @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User                     @relation("ConsiderationRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  recipientId   String
+  recipient     User                     @relation("ConsiderationRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  message       String                   @db.VarChar(2000)
+  response      String?                  @db.VarChar(2000)
+  status        ConsiderationRequestStatus @default(PENDING)
+  respondedAt   DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([submissionId, createdAt])
+  @@index([recipientId, status, createdAt])
+}
+
+model ExplanationRequest {
+  id            String                   @id @default(uuid())
+  submissionId  String
+  submission    Submission               @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User                     @relation("ExplanationRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  recipientId   String
+  recipient     User                     @relation("ExplanationRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  question      String                   @db.VarChar(2000)
+  answer        String?                  @db.VarChar(2000)
+  status        ExplanationRequestStatus @default(PENDING)
+  answeredAt    DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([submissionId, createdAt])
+  @@index([recipientId, status, createdAt])
+}
+
 model SubmissionRevision {
-  id           String     @id @default(uuid()) @db.Uuid
-  submissionId String     @db.Uuid
+  id           String     @id @default(uuid())
+  submissionId String
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   version      Int
   snapshot     Json
-  editedById   String     @db.Uuid
+  editedById   String
   editedBy     User       @relation(fields: [editedById], references: [id], onDelete: Restrict)
   createdAt    DateTime   @default(now())
 
@@ -267,14 +336,14 @@ model SubmissionRevision {
 }
 
 model Attachment {
-  id               String     @id @default(uuid()) @db.Uuid
-  submissionId     String     @db.Uuid
+  id               String     @id @default(uuid())
+  submissionId     String
   submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   originalFilename String     @db.VarChar(255)
   storageKey       String     @unique @db.VarChar(500)
   mimeType         String     @db.VarChar(120)
   sizeBytes        Int
-  uploadedById     String     @db.Uuid
+  uploadedById     String
   uploadedBy       User       @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
   createdAt        DateTime   @default(now())
 
@@ -282,10 +351,10 @@ model Attachment {
 }
 
 model Notification {
-  id           String           @id @default(uuid()) @db.Uuid
-  userId       String           @db.Uuid
+  id           String           @id @default(uuid())
+  userId       String
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  submissionId String           @db.Uuid
+  submissionId String
   submission   Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   type         NotificationType
   message      String           @db.VarChar(500)

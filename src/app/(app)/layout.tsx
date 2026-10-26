@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "./_components/AppShell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

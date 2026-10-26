@@ -16,18 +16,18 @@ import { StatusBadge, SubmissionStatus } from "@/components/StatusBadge";
 interface InboxSubmission {
   id: string;
   number: string;
-  purpose: string;
   status: SubmissionStatus;
   submittedAt: string | null;
   requester: { id: string; name: string };
   unit: { id: string; name: string };
   category: { id: string; name: string };
+  taskType: "WORKFLOW" | "EXPLANATION";
   currentStep: {
     id: string;
     order: number;
     type: "APPROVAL" | "CONSIDERATION";
     allowRevision: boolean;
-  };
+  } | null;
 }
 
 export default function InboxPage() {
@@ -107,15 +107,13 @@ export default function InboxPage() {
                     </span>
                     <StatusBadge status={item.status} />
                     <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-[#1E3A5F]">
-                      {item.currentStep.type === "CONSIDERATION"
-                        ? "Pertimbangan Teknis"
-                        : `Approval Tahap ${item.currentStep.order}`}
+                      {item.taskType === "EXPLANATION"
+                        ? "Menunggu Penjelasan Anda"
+                        : item.currentStep?.type === "CONSIDERATION"
+                          ? "Pertimbangan Teknis"
+                          : `Approval Tahap ${item.currentStep?.order}`}
                     </span>
                   </div>
-
-                  <p className="text-xs text-slate-700 font-medium line-clamp-2">
-                    {item.purpose}
-                  </p>
 
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">

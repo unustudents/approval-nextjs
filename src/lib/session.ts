@@ -12,7 +12,7 @@ export type SessionUser = {
   id: string;
   username: string;
   name: string;
-  role: Role;
+  roles: Role[];
   unitId: string | null;
 };
 
@@ -57,7 +57,7 @@ export async function getSession() {
 
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
-    include: { user: true },
+    include: { user: { include: { roles: { select: { role: true } } } } },
   });
 
   if (!session || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
@@ -70,7 +70,7 @@ export async function getSession() {
     id: session.user.id,
     username: session.user.username,
     name: session.user.name,
-    role: session.user.role,
+    roles: session.user.roles.map((assignment) => assignment.role),
     unitId: session.user.unitId,
   } satisfies SessionUser;
 }

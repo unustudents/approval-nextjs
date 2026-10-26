@@ -1,6 +1,12 @@
 export interface ActionModalState {
   open: boolean;
-  type: "APPROVE" | "REJECT" | "REQUEST_REVISION" | "CONSIDERATION" | null;
+  type:
+    | "APPROVE"
+    | "REJECT"
+    | "REQUEST_REVISION"
+    | "CONSIDERATION"
+    | "DELETE"
+    | null;
   title: string;
   note: string;
 }
@@ -33,24 +39,28 @@ export function SubmissionActionModal({
               ? "Pengajuan akan ditolak secara permanen. Catatan alasan penolakan wajib dicantumkan."
               : modalState.type === "REQUEST_REVISION"
                 ? "Pengajuan akan dikembalikan kepada pemohon untuk direvisi sesuai catatan Anda."
-                : "Berikan masukan atau catatan profesional terkait aspek teknis barang yang diajukan."}
+                : modalState.type === "DELETE"
+                  ? "Pengajuan beserta lampirannya akan dihapus permanen. Tindakan ini hanya tersedia sebelum Manager Unit memberi tanggapan."
+                  : "Berikan masukan atau catatan profesional terkait aspek teknis barang yang diajukan."}
         </p>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Catatan / Keterangan{" "}
-            {modalState.type !== "APPROVE" && (
-              <span className="text-rose-500">*</span>
-            )}
-          </label>
-          <textarea
-            rows={4}
-            value={modalState.note}
-            onChange={(e) => onNoteChange(e.target.value)}
-            placeholder="Tuliskan catatan pertimbangan, alasan, atau arahan revisi..."
-            className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white"
-          />
-        </div>
+        {modalState.type !== "DELETE" && (
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Catatan / Keterangan{" "}
+              {modalState.type !== "APPROVE" && (
+                <span className="text-rose-500">*</span>
+              )}
+            </label>
+            <textarea
+              rows={4}
+              value={modalState.note}
+              onChange={(e) => onNoteChange(e.target.value)}
+              placeholder="Tuliskan catatan pertimbangan, alasan, atau arahan revisi..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white"
+            />
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <button
@@ -66,14 +76,18 @@ export function SubmissionActionModal({
             disabled={loading}
             onClick={onConfirm}
             className={`px-4 py-2 text-xs font-semibold text-white rounded-md transition-colors cursor-pointer ${
-              modalState.type === "REJECT"
+              modalState.type === "REJECT" || modalState.type === "DELETE"
                 ? "bg-rose-600 hover:bg-rose-700"
                 : modalState.type === "REQUEST_REVISION"
                   ? "bg-amber-600 hover:bg-amber-700"
                   : "bg-[#1E3A5F] hover:bg-[#162C47]"
             }`}
           >
-            {loading ? "Memproses..." : "Konfirmasi Tindakan"}
+            {loading
+              ? "Memproses..."
+              : modalState.type === "DELETE"
+                ? "Hapus Pengajuan"
+                : "Konfirmasi Tindakan"}
           </button>
         </div>
       </div>

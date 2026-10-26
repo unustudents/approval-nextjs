@@ -6,7 +6,6 @@ export interface SubmissionSummary {
   id: string;
   number: string;
   status: SubmissionStatus;
-  purpose: string;
   createdAt: string;
   submittedAt: string | null;
   requester: { id: string; name: string };
@@ -58,7 +57,6 @@ export function RecentSubmissionsTable({
                 <th className="py-3 px-4">Tanggal</th>
                 <th className="py-3 px-4">Pemohon & Unit</th>
                 <th className="py-3 px-4">Kategori</th>
-                <th className="py-3 px-4">Peruntukan</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Aksi</th>
               </tr>
@@ -91,12 +89,6 @@ export function RecentSubmissionsTable({
                     <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700">
                       {sub.category.name}
                     </span>
-                  </td>
-                  <td
-                    className="py-3 px-4 max-w-xs truncate"
-                    title={sub.purpose}
-                  >
-                    {sub.purpose}
                   </td>
                   <td className="py-3 px-4 whitespace-nowrap">
                     <StatusBadge status={sub.status} />

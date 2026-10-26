@@ -28,13 +28,13 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { roleDisplayName } from "./StatusBadge";
+import { roleDisplayName } from "@/components/StatusBadge";
 
 export type CurrentUser = {
   id: string;
   username: string;
   name: string;
-  role: string;
+  roles: string[];
   unitId: string | null;
 };
 
@@ -126,7 +126,7 @@ export function AppShell({
 
   // 2. Smart Heartbeat: Polling otomatis HANYA saat tab aktif di layar dan user tidak idle
   // Jika tab di-minimize, pindah tab lain, atau ditinggal (idle > 5 menit), polling otomatis berhenti total
-  // sehingga Neon DB tetap bisa auto-suspend untuk menghemat kuota free tier
+  // agar tidak melakukan polling saat aplikasi tidak sedang digunakan
   useEffect(() => {
     if (!user) return;
 
@@ -225,12 +225,14 @@ export function AppShell({
     router.push(`/submissions/${notif.submissionId}`);
   }
 
-  const isSuperadmin = user?.role === "SUPERADMIN";
-  const isRequester = user?.role === "REQUESTER" || isSuperadmin;
+  const hasRole = (role: string) => user?.roles.includes(role) ?? false;
+  const isSuperadmin = hasRole("SUPERADMIN");
+  const isRequester = hasRole("REQUESTER") || isSuperadmin;
   const isApprover =
-    user?.role === "UNIT_MANAGER" ||
-    user?.role === "CONSIDERATION" ||
-    user?.role === "FINANCE_APPROVER" ||
+    hasRole("REQUESTER") ||
+    hasRole("UNIT_MANAGER") ||
+    hasRole("CONSIDERATION") ||
+    hasRole("FINANCE_APPROVER") ||
     isSuperadmin;
 
   const navigation = [
@@ -437,7 +439,7 @@ export function AppShell({
                         {user.name}
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        {roleDisplayName(user.role)}
+                        {user.roles.map(roleDisplayName).join(", ")}
                       </span>
                     </div>
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 async function assertManager(managerId: string | null | undefined) {
   if (managerId === undefined || managerId === null) return;
   const manager = await prisma.user.findFirst({
-    where: { id: managerId, role: "UNIT_MANAGER", status: "ACTIVE" },
+    where: { id: managerId, roles: { some: { role: "UNIT_MANAGER" } }, status: "ACTIVE" },
     select: { id: true },
   });
   if (!manager) throw conflict("Manager harus berupa pengguna aktif dengan role Manager Unit");

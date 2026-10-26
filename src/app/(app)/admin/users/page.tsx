@@ -16,11 +16,20 @@ interface AdminUserItem {
   id: string;
   username: string;
   name: string;
-  role: string;
+  roles: Array<{ role: string }>;
   status: "ACTIVE" | "INACTIVE";
   unit: { id: string; name: string } | null;
   createdAt: string;
 }
+
+const availableRoles = [
+  ["REQUESTER", "Kepala Unit / SPV"],
+  ["UNIT_MANAGER", "Manager Unit"],
+  ["CONSIDERATION", "Pemberi Pertimbangan"],
+  ["FINANCE_APPROVER", "Approver Keuangan"],
+  ["GENERAL_AFFAIRS", "TU / Umum"],
+  ["SUPERADMIN", "Superadmin"],
+] as const;
 
 interface UnitOption {
   id: string;
@@ -38,7 +47,7 @@ export default function AdminUsersPage() {
   const [formUsername, setFormUsername] = useState("");
   const [formName, setFormName] = useState("");
   const [formPassword, setFormPassword] = useState("");
-  const [formRole, setFormRole] = useState("REQUESTER");
+  const [formRoles, setFormRoles] = useState<string[]>(["REQUESTER"]);
   const [formUnitId, setFormUnitId] = useState<string>("");
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
@@ -46,7 +55,7 @@ export default function AdminUsersPage() {
   // Modal edit
   const [editUser, setEditUser] = useState<AdminUserItem | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState("");
+  const [editRoles, setEditRoles] = useState<string[]>([]);
   const [editStatus, setEditStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [editUnitId, setEditUnitId] = useState<string>("");
   const [editPassword, setEditPassword] = useState("");
@@ -77,6 +86,10 @@ export default function AdminUsersPage() {
       setFormError("Semua field wajib diisi");
       return;
     }
+    if (formRoles.length === 0) {
+      setFormError("Pilih minimal satu role akses");
+      return;
+    }
     if (formPassword.length < 4) {
       setFormError("Password pengguna minimal 4 karakter");
       return;
@@ -88,7 +101,7 @@ export default function AdminUsersPage() {
         username: formUsername.trim().toLowerCase(),
         name: formName.trim(),
         password: formPassword,
-        role: formRole,
+        roles: formRoles,
         unitId: formUnitId || null,
       });
 
@@ -99,6 +112,7 @@ export default function AdminUsersPage() {
       setFormName("");
       setFormPassword("");
       setFormUnitId("");
+      setFormRoles(["REQUESTER"]);
     } catch (err) {
       if (err instanceof ApiError) setFormError(err.message);
       else setFormError("Gagal menambahkan pengguna");
@@ -111,12 +125,16 @@ export default function AdminUsersPage() {
     e.preventDefault();
     if (!editUser) return;
     setFormError("");
+    if (editRoles.length === 0) {
+      setFormError("Pilih minimal satu role akses");
+      return;
+    }
     setFormLoading(true);
 
     try {
       const payload: Record<string, unknown> = {
         name: editName.trim(),
-        role: editRole,
+        roles: editRoles,
         status: editStatus,
         unitId: editUnitId || null,
       };
@@ -147,7 +165,7 @@ export default function AdminUsersPage() {
       u.username.toLowerCase().includes(q) ||
       u.name.toLowerCase().includes(q) ||
       (u.unit?.name ?? "").toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
+      u.roles.some((assignment) => assignment.role.toLowerCase().includes(q))
     );
   });
 
@@ -222,9 +240,13 @@ export default function AdminUsersPage() {
                       {u.name}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800">
-                        {roleDisplayName(u.role)}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {u.roles.map(({ role }) => (
+                          <span key={role} className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800">
+                            {roleDisplayName(role)}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-slate-600">
                       {u.unit?.name ?? (
@@ -251,7 +273,7 @@ export default function AdminUsersPage() {
                           setFormError("");
                           setEditUser(u);
                           setEditName(u.name);
-                          setEditRole(u.role);
+                          setEditRoles(u.roles.map((assignment) => assignment.role));
                           setEditStatus(u.status);
                           setEditUnitId(u.unit?.id ?? "");
                           setEditPassword("");
@@ -328,23 +350,17 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
-                    Peran (Role)
-                  </label>
-                  <select
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                  >
-                    <option value="REQUESTER">Kepala Unit / SPV</option>
-                    <option value="UNIT_MANAGER">Manager Unit</option>
-                    <option value="CONSIDERATION">Pemberi Pertimbangan</option>
-                    <option value="FINANCE_APPROVER">Approver Keuangan</option>
-                    <option value="GENERAL_AFFAIRS">TU / Umum</option>
-                    <option value="SUPERADMIN">Superadmin</option>
-                  </select>
-                </div>
+                <fieldset>
+                  <legend className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">Role Akses</legend>
+                  <div className="space-y-1.5 rounded border border-slate-200 p-2">
+                    {availableRoles.map(([role, label]) => (
+                      <label key={role} className="flex items-center gap-2 text-xs text-slate-700">
+                        <input type="checkbox" checked={formRoles.includes(role)} onChange={() => setFormRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role])} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
@@ -415,23 +431,17 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
-                    Peran (Role)
-                  </label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                  >
-                    <option value="REQUESTER">Kepala Unit / SPV</option>
-                    <option value="UNIT_MANAGER">Manager Unit</option>
-                    <option value="CONSIDERATION">Pemberi Pertimbangan</option>
-                    <option value="FINANCE_APPROVER">Approver Keuangan</option>
-                    <option value="GENERAL_AFFAIRS">TU / Umum</option>
-                    <option value="SUPERADMIN">Superadmin</option>
-                  </select>
-                </div>
+                <fieldset>
+                  <legend className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">Role Akses</legend>
+                  <div className="space-y-1.5 rounded border border-slate-200 p-2">
+                    {availableRoles.map(([role, label]) => (
+                      <label key={role} className="flex items-center gap-2 text-xs text-slate-700">
+                        <input type="checkbox" checked={editRoles.includes(role)} onChange={() => setEditRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role])} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">

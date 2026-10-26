@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,9 +12,10 @@ import {
   Send,
   Edit3,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
-import { useCurrentUser } from "@/components/AppShell";
+import { useCurrentUser } from "@/app/(app)/_components/AppShell";
 import {
   StatusBadge,
   SubmissionStatus,
@@ -35,18 +37,19 @@ import {
   SubmissionActionModal,
   ActionModalState,
 } from "./_components/SubmissionActionModal";
+import { ConsiderationPanel } from "./_components/ConsiderationPanel";
+import { ExplanationPanel } from "./_components/ExplanationPanel";
 
 interface SubmissionDetail {
   id: string;
   number: string;
-  purpose: string;
   status: SubmissionStatus;
   createdAt: string;
   submittedAt: string | null;
   approvedAt: string | null;
   decidedAt: string | null;
   requesterId: string;
-  requester: { id: string; username: string; name: string; role: string };
+  requester: { id: string; username: string; name: string; roles: Array<{ role: string }> };
   unit: { id: string; name: string };
   category: { id: string; name: string };
   items: SubmissionItem[];
@@ -66,6 +69,30 @@ interface SubmissionDetail {
     editedBy: { id: string; name: string };
   }>;
   attachments: AttachmentItem[];
+  considerationRequests: Array<{
+    id: string;
+    requestedBy: { id: string; name: string };
+    recipient: { id: string; name: string; roles: Array<{ role: string }> };
+    message: string;
+    response: string | null;
+    status: "PENDING" | "RESPONDED";
+    createdAt: string;
+    respondedAt: string | null;
+  }>;
+  explanationRequests: Array<{
+    id: string;
+    requestedBy: { id: string; name: string };
+    recipient: { id: string; name: string };
+    question: string;
+    answer: string | null;
+    status: "PENDING" | "ANSWERED";
+    createdAt: string;
+    answeredAt: string | null;
+  }>;
+  permissions: {
+    canEdit: boolean;
+    canDelete: boolean;
+  };
 }
 
 export default function SubmissionDetailPage({
@@ -76,6 +103,7 @@ export default function SubmissionDetailPage({
   const resolvedParams = use(params);
   const submissionId = resolvedParams.submissionId;
   const user = useCurrentUser();
+  const router = useRouter();
 
   const [submission, setSubmission] = useState<SubmissionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +118,6 @@ export default function SubmissionDetailPage({
 
   // Revision edit mode
   const [isEditing, setIsEditing] = useState(false);
-  const [editPurpose, setEditPurpose] = useState("");
   const [editItems, setEditItems] = useState<SubmissionItem[]>([]);
 
   useEffect(() => {
@@ -103,7 +130,6 @@ export default function SubmissionDetailPage({
         );
         if (!active) return;
         setSubmission(data);
-        setEditPurpose(data.purpose);
         setEditItems(data.items);
       } catch (err) {
         console.error("Gagal memuat detail pengajuan", err);
@@ -122,6 +148,25 @@ export default function SubmissionDetailPage({
   async function handleExecuteAction() {
     if (!actionModal.type || !submission) return;
     setErrorMsg("");
+
+    if (actionModal.type === "DELETE") {
+      setActionLoading(true);
+      try {
+        await api.delete(`/api/submissions/${submission.id}`);
+        router.replace("/submissions");
+        router.refresh();
+      } catch (err) {
+        setActionModal({ open: false, type: null, title: "", note: "" });
+        if (err instanceof ApiError) {
+          setErrorMsg(err.message);
+        } else {
+          setErrorMsg("Gagal menghapus pengajuan");
+        }
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
 
     const requiresNote =
       actionModal.type === "REJECT" ||
@@ -173,13 +218,22 @@ export default function SubmissionDetailPage({
     }
   }
 
+  async function refreshSubmission() {
+    const refreshed = await api.get<SubmissionDetail>(`/api/submissions/${submissionId}`);
+    setSubmission(refreshed);
+  }
+
   async function handleSaveAndResubmitRevision() {
     if (!submission) return;
     setErrorMsg("");
 
     for (let i = 0; i < editItems.length; i++) {
       const it = editItems[i];
-      if (!it.name.trim() || !it.quantity || !it.description.trim()) {
+      if (
+        !it.name.trim() ||
+        !it.quantity ||
+        !Number(it.unitPrice)
+      ) {
         setErrorMsg(`Lengkapi data barang ke-${i + 1}`);
         return;
       }
@@ -188,11 +242,12 @@ export default function SubmissionDetailPage({
     setActionLoading(true);
     try {
       await api.patch(`/api/submissions/${submission.id}`, {
-        purpose: editPurpose.trim(),
         items: editItems.map((it) => ({
           name: it.name.trim(),
           quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
           description: it.description.trim(),
+          specification: it.specification.trim(),
         })),
       });
 
@@ -245,8 +300,8 @@ export default function SubmissionDetailPage({
     ].includes(submission.status) &&
     (submission.currentStep.targetUser?.id === user.id ||
       (submission.currentStep.targetType === "ROLE" &&
-        submission.currentStep.targetRole === user.role) ||
-      user.role === "SUPERADMIN");
+        submission.currentStep.targetRole !== null && user.roles.includes(submission.currentStep.targetRole)) ||
+      user.roles.includes("SUPERADMIN"));
 
   const isRequester = user?.id === submission.requesterId;
 
@@ -294,9 +349,7 @@ export default function SubmissionDetailPage({
             </button>
           )}
 
-          {submission.status === "NEEDS_REVISION" &&
-            isRequester &&
-            !isEditing && (
+          {submission.permissions.canEdit && !isEditing && (
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
@@ -306,6 +359,24 @@ export default function SubmissionDetailPage({
                 Perbaiki & Kirim Ulang Revisi
               </button>
             )}
+
+          {submission.permissions.canDelete && !isEditing && (
+            <button
+              type="button"
+              onClick={() =>
+                setActionModal({
+                  open: true,
+                  type: "DELETE",
+                  title: "Hapus Pengajuan",
+                  note: "",
+                })
+              }
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-semibold text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+              Hapus Pengajuan
+            </button>
+          )}
         </div>
       </div>
 
@@ -332,7 +403,7 @@ export default function SubmissionDetailPage({
                   : "Tahap Keputusan Persetujuan (Approval)"}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Sebagai {user ? roleDisplayName(user.role) : "Approver"},
+                Sebagai {user ? user.roles.map(roleDisplayName).join(", ") : "Approver"},
                 berikan keputusan atau masukan Anda terhadap berkas pengadaan
                 ini.
               </p>
@@ -415,7 +486,7 @@ export default function SubmissionDetailPage({
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
             <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Informasi & Peruntukan Pengadaan
+              Informasi Pengadaan
             </h2>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-4 border-b border-slate-100 text-xs">
@@ -445,23 +516,6 @@ export default function SubmissionDetailPage({
               </div>
             </div>
 
-            <div>
-              <span className="text-slate-400 block text-[11px] mb-1">
-                Alasan Kebutuhan / Peruntukan:
-              </span>
-              {isEditing ? (
-                <textarea
-                  rows={3}
-                  value={editPurpose}
-                  onChange={(e) => setEditPurpose(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded-md text-xs text-slate-800 bg-white"
-                />
-              ) : (
-                <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line bg-slate-50 p-3 rounded-md border border-slate-100">
-                  {submission.purpose}
-                </p>
-              )}
-            </div>
           </div>
 
           <SubmissionItemsTable
@@ -476,7 +530,9 @@ export default function SubmissionDetailPage({
                   id: String(Date.now()),
                   name: "",
                   quantity: 1,
+                  unitPrice: 0,
                   description: "",
+                  specification: "",
                 },
               ])
             }
@@ -497,6 +553,23 @@ export default function SubmissionDetailPage({
           <SubmissionAttachments
             submissionId={submission.id}
             attachments={submission.attachments}
+          />
+
+          <ConsiderationPanel
+            submissionId={submission.id}
+            canRequest={Boolean(isCurrentActor)}
+            currentUserId={user?.id}
+            currentUserRoles={user?.roles ?? []}
+            requests={submission.considerationRequests}
+            onChanged={refreshSubmission}
+          />
+
+          <ExplanationPanel
+            submissionId={submission.id}
+            canRequest={Boolean(isCurrentActor)}
+            currentUserId={user?.id}
+            requests={submission.explanationRequests}
+            onChanged={refreshSubmission}
           />
         </div>
 

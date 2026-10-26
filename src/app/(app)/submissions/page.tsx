@@ -12,7 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { useCurrentUser } from "@/components/AppShell";
+import { useCurrentUser } from "@/app/(app)/_components/AppShell";
 import {
   StatusBadge,
   SubmissionStatus,
@@ -23,7 +23,6 @@ interface SubmissionListItem {
   id: string;
   number: string;
   status: SubmissionStatus;
-  purpose: string;
   createdAt: string;
   submittedAt: string | null;
   requester: { id: string; name: string };
@@ -128,7 +127,8 @@ export default function SubmissionsPage() {
     return "Sedang Diproses";
   }
 
-  const isRequester = user?.role === "REQUESTER" || user?.role === "SUPERADMIN";
+  const isRequester = user?.roles.includes("REQUESTER") || user?.roles.includes("SUPERADMIN");
+  const canSeeRequesterColumn = user !== null && !user.roles.every((role) => role === "REQUESTER");
 
   return (
     <div className="space-y-5">
@@ -167,7 +167,7 @@ export default function SubmissionsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nomor pengajuan, nama pemohon, peruntukan..."
+              placeholder="Cari nomor pengajuan, nama pemohon, atau kategori..."
               className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white transition-colors"
             />
           </div>
@@ -237,9 +237,10 @@ export default function SubmissionsPage() {
                 <tr>
                   <th className="py-3 px-4">Nomor Berkas</th>
                   <th className="py-3 px-4">Tanggal Pengajuan</th>
-                  <th className="py-3 px-4">Pemohon & Unit</th>
+                  {canSeeRequesterColumn && (
+                    <th className="py-3 px-4">Pemohon & Unit</th>
+                  )}
                   <th className="py-3 px-4">Kategori</th>
-                  <th className="py-3 px-4">Peruntukan</th>
                   <th className="py-3 px-4">Posisi Saat Ini</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Tindakan</th>
@@ -261,24 +262,20 @@ export default function SubmissionsPage() {
                         year: "numeric",
                       })}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-900">
-                        {sub.requester.name}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {sub.unit.name}
-                      </div>
-                    </td>
+                    {canSeeRequesterColumn && (
+                      <td className="py-3.5 px-4">
+                        <div className="font-medium text-slate-900">
+                          {sub.requester.name}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {sub.unit.name}
+                        </div>
+                      </td>
+                    )}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 font-medium">
                         {sub.category.name}
                       </span>
-                    </td>
-                    <td
-                      className="py-3.5 px-4 max-w-xs truncate"
-                      title={sub.purpose}
-                    >
-                      {sub.purpose}
                     </td>
                     <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                       <span className="font-medium">

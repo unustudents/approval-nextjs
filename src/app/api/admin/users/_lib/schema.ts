@@ -11,14 +11,14 @@ export const createUserSchema = z.object({
     .regex(/^[a-z0-9._-]+$/),
   name: z.string().trim().min(2).max(160),
   password: z.string().min(4).max(128),
-  role: z.enum([
+  roles: z.array(z.enum([
     "REQUESTER",
     "UNIT_MANAGER",
     "CONSIDERATION",
     "FINANCE_APPROVER",
     "GENERAL_AFFAIRS",
     "SUPERADMIN",
-  ]),
+  ])).min(1),
   unitId: z.uuid().nullable().optional(),
 });
 
@@ -34,15 +34,16 @@ export const updateUserSchema = z
       .optional(),
     name: z.string().trim().min(2).max(160).optional(),
     password: z.string().min(4).max(128).optional(),
-    role: z
-      .enum([
+    roles: z
+      .array(z.enum([
         "REQUESTER",
         "UNIT_MANAGER",
         "CONSIDERATION",
         "FINANCE_APPROVER",
         "GENERAL_AFFAIRS",
         "SUPERADMIN",
-      ])
+      ]))
+      .min(1)
       .optional(),
     status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
     unitId: z.uuid().nullable().optional(),

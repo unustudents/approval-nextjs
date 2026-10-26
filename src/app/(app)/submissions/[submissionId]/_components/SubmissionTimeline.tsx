@@ -12,9 +12,24 @@ export interface TimelineAction {
   resultingStatus: string;
   note: string | null;
   createdAt: string;
-  actor: { id: string; name: string; role: string };
+  actor: { id: string; name: string; roles: Array<{ role: string }> };
+  actorRole: string | null;
   submissionStep?: { order: number; type: string } | null;
 }
+
+const actionLabel: Record<string, string> = {
+  APPROVED: "Menyetujui pengajuan",
+  REJECTED: "Menolak pengajuan",
+  REVISION_REQUESTED: "Meminta revisi",
+  CONSIDERATION_REQUESTED: "Meminta pertimbangan",
+  CONSIDERATION_GIVEN: "Memberikan pertimbangan",
+  EXPLANATION_REQUESTED: "Meminta penjelasan kepada pengaju",
+  EXPLANATION_GIVEN: "Memberikan penjelasan",
+  RESUBMITTED: "Mengirim ulang pengajuan",
+  SUBMITTED: "Mengirim pengajuan",
+  EDITED: "Memperbarui pengajuan",
+  SKIPPED: "Melewati tahapan",
+};
 
 export function SubmissionTimeline({ actions }: { actions: TimelineAction[] }) {
   return (
@@ -42,9 +57,12 @@ export function SubmissionTimeline({ actions }: { actions: TimelineAction[] }) {
             } else if (act.action === "REVISION_REQUESTED") {
               icon = <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />;
               dotBg = "bg-amber-100";
-            } else if (act.action === "CONSIDERATION_GIVEN") {
+            } else if (act.action === "CONSIDERATION_GIVEN" || act.action === "CONSIDERATION_REQUESTED") {
               icon = <MessageSquare className="w-3.5 h-3.5 text-sky-600" />;
               dotBg = "bg-sky-100";
+            } else if (act.action === "EXPLANATION_REQUESTED" || act.action === "EXPLANATION_GIVEN") {
+              icon = <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />;
+              dotBg = "bg-indigo-100";
             }
 
             return (
@@ -58,7 +76,7 @@ export function SubmissionTimeline({ actions }: { actions: TimelineAction[] }) {
                   {act.actor.name}
                 </div>
                 <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                  <span>{roleDisplayName(act.actor.role)}</span>
+                  <span>{roleDisplayName(act.actorRole ?? act.actor.roles[0]?.role ?? "")}</span>
                   <span>&bull;</span>
                   <span>
                     {new Date(act.createdAt).toLocaleDateString("id-ID", {
@@ -70,7 +88,7 @@ export function SubmissionTimeline({ actions }: { actions: TimelineAction[] }) {
                   </span>
                 </div>
                 <div className="mt-1 font-medium text-slate-700">
-                  Aksi: <span className="font-bold">{act.action}</span>
+                  Aksi: <span className="font-bold">{actionLabel[act.action] ?? act.action}</span>
                 </div>
                 {act.note && (
                   <div className="mt-1.5 p-2 rounded bg-slate-50 border border-slate-100 text-slate-600 text-[11px] whitespace-pre-line">

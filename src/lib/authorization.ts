@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/session";
 
 export async function requireRole(...roles: Role[]) {
   const session = await requireSession();
-  if (!roles.includes(session.role)) throw forbidden();
+  if (!session.roles.some((role) => roles.includes(role))) throw forbidden();
   return session;
 }
 

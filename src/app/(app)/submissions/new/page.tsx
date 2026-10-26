@@ -24,9 +24,15 @@ export default function NewSubmissionPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryId, setCategoryId] = useState("");
-  const [purpose, setPurpose] = useState("");
   const [items, setItems] = useState<ItemInput[]>([
-    { id: "1", name: "", quantity: 1, description: "" },
+    {
+      id: "1",
+      name: "",
+      quantity: 1,
+      unitPrice: 0,
+      description: "",
+      specification: "",
+    },
   ]);
   const [files, setFiles] = useState<File[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
@@ -53,7 +59,14 @@ export default function NewSubmissionPage() {
   function handleAddItem() {
     setItems((prev) => [
       ...prev,
-      { id: String(Date.now()), name: "", quantity: 1, description: "" },
+      {
+        id: String(Date.now()),
+        name: "",
+        quantity: 1,
+        unitPrice: 0,
+        description: "",
+        specification: "",
+      },
     ]);
   }
 
@@ -64,7 +77,7 @@ export default function NewSubmissionPage() {
 
   function handleItemChange(
     id: string,
-    field: "name" | "quantity" | "description",
+    field: "name" | "quantity" | "unitPrice" | "description" | "specification",
     val: string | number,
   ) {
     setItems((prev) =>
@@ -109,13 +122,6 @@ export default function NewSubmissionPage() {
       setErrorMsg("Pilih kategori pengajuan");
       return;
     }
-    if (!purpose.trim()) {
-      setErrorMsg(
-        "Harap isi deskripsi peruntukan / alasan kebutuhan pengadaan",
-      );
-      return;
-    }
-
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (!it.name.trim()) {
@@ -126,10 +132,8 @@ export default function NewSubmissionPage() {
         setErrorMsg(`Barang ke-${i + 1}: Jumlah barang minimal 1`);
         return;
       }
-      if (!it.description.trim()) {
-        setErrorMsg(
-          `Barang ke-${i + 1}: Spesifikasi / keterangan barang wajib diisi`,
-        );
+      if (!it.unitPrice || it.unitPrice <= 0) {
+        setErrorMsg(`Barang ke-${i + 1}: Harga satuan harus lebih dari 0`);
         return;
       }
     }
@@ -139,11 +143,12 @@ export default function NewSubmissionPage() {
     try {
       const created = await api.post<{ id: string }>("/api/submissions", {
         categoryId,
-        purpose: purpose.trim(),
         items: items.map((it) => ({
           name: it.name.trim(),
           quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
           description: it.description.trim(),
+          specification: it.specification.trim(),
         })),
       });
 
@@ -229,24 +234,6 @@ export default function NewSubmissionPage() {
             Kategori menentukan alur rantai persetujuan dan verifikator teknis
             yang bertugas.
           </p>
-        </div>
-
-        <div>
-          <label
-            htmlFor="purpose"
-            className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-          >
-            Peruntukan & Alasan Kebutuhan{" "}
-            <span className="text-rose-500">*</span>
-          </label>
-          <textarea
-            id="purpose"
-            rows={3}
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder="Jelaskan kebutuhan pengadaan, tujuan penggunaan barang, serta urgensinya bagi operasional..."
-            className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white transition-colors"
-          />
         </div>
 
         <ItemRowInputs
