@@ -270,7 +270,7 @@ export async function listSubmissions(user: SessionUser, filters: {
 export async function getSubmission(user: SessionUser, id: string) {
   const submission = await loadAccessibleSubmission(user, id);
   const isRequester = submission.requesterId === user.id;
-  const canEdit = isRequester && submission.status === "NEEDS_REVISION";
+  const canEdit = isRequester && (submission.status === "DRAFT" || submission.status === "NEEDS_REVISION");
   const canDelete =
     isRequester &&
     submission.status === "WAITING_UNIT_MANAGER" &&
@@ -332,6 +332,8 @@ export async function deleteUnansweredSubmission(user: SessionUser, id: string) 
 }
 
 export async function updateSubmission(user: SessionUser, id: string, input: {
+  categoryId?: string;
+  unitId?: string;
   items: Array<{
     name: string;
     quantity: number;
@@ -345,6 +347,31 @@ export async function updateSubmission(user: SessionUser, id: string, input: {
   if (submission.requesterId !== user.id) throw forbidden();
   if (submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {
     throw conflict("Pengajuan hanya dapat diubah sebagai draft atau saat diminta revisi");
+  }
+
+  let categoryId: string | undefined;
+  let unitId: string | undefined;
+  if (submission.status === "DRAFT") {
+    if (input.categoryId && input.categoryId !== submission.categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: input.categoryId, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (!category) throw notFound();
+      categoryId = category.id;
+    }
+
+    if (input.unitId && input.unitId !== submission.unitId) {
+      if (!hasRole(user, "UNIT_MANAGER")) throw forbidden();
+      const unit = await prisma.unit.findFirst({
+        where: { id: input.unitId, managerId: user.id, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (!unit) throw forbidden();
+      unitId = unit.id;
+    }
+  } else if (input.categoryId !== undefined || input.unitId !== undefined) {
+    throw conflict("Kategori dan unit hanya dapat diubah saat pengajuan masih draft");
   }
 
   const snapshot = {
@@ -362,7 +389,7 @@ export async function updateSubmission(user: SessionUser, id: string, input: {
   await prisma.$transaction(async (tx) => {
     const changed = await tx.submission.updateMany({
       where: { id, requesterId: user.id, status: submission.status, updatedAt: submission.updatedAt },
-      data: { updatedAt: new Date() },
+      data: { updatedAt: new Date(), ...(categoryId ? { categoryId } : {}), ...(unitId ? { unitId } : {}) },
     });
     if (changed.count !== 1) throw conflict("Pengajuan berubah saat sedang diedit. Muat ulang sebelum mencoba lagi");
 

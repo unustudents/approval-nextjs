@@ -25,6 +25,7 @@ import {
   ChevronDown,
   CheckCircle2,
   Clock,
+  LayoutGrid,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { roleDisplayName } from "@/components/StatusBadge";
@@ -241,7 +242,18 @@ export function AppShell({
         <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <Link
+                  href="/portal"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-[#1E3A5F] text-xs font-semibold border border-slate-200 transition-colors shadow-2xs"
+                  title="Kembali ke Menu Utama (Portal)"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="hidden sm:inline">Menu Utama</span>
+                </Link>
+
+                <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+
                 <Link
                   href="/dashboard"
                   className="flex items-center gap-2.5 font-semibold text-slate-900 tracking-tight"
@@ -269,11 +281,10 @@ export function AppShell({
                         <Link
                           key={item.href}
                           href={item.href}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            active
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active
                               ? "bg-[#1E3A5F] text-white"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                          }`}
+                            }`}
                         >
                           <Icon className="w-4 h-4" />
                           {item.name}
@@ -290,11 +301,10 @@ export function AppShell({
                             openPath === pathname ? null : pathname,
                           )
                         }
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                          pathname.startsWith("/admin")
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${pathname.startsWith("/admin")
                             ? "bg-slate-200 text-slate-900"
                             : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         <Building className="w-4 h-4" />
                         Manajemen Master
@@ -311,11 +321,10 @@ export function AppShell({
                                 key={sub.href}
                                 href={sub.href}
                                 onClick={() => setAdminDropdownPath(null)}
-                                className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                                  active
+                                className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${active
                                     ? "bg-slate-100 text-[#1E3A5F] font-semibold"
                                     : "text-slate-700 hover:bg-slate-50"
-                                }`}
+                                  }`}
                               >
                                 <SubIcon className="w-4 h-4 text-slate-500" />
                                 {sub.name}
@@ -367,9 +376,8 @@ export function AppShell({
                               key={notif.id}
                               type="button"
                               onClick={() => handleNotificationClick(notif)}
-                              className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors hover:bg-slate-50 flex items-start gap-2.5 ${
-                                !notif.readAt ? "bg-blue-50/50" : ""
-                              }`}
+                              className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors hover:bg-slate-50 flex items-start gap-2.5 ${!notif.readAt ? "bg-blue-50/50" : ""
+                                }`}
                             >
                               <div className="mt-0.5 shrink-0">
                                 {notif.type === "ACTION_REQUIRED" ? (
@@ -447,6 +455,15 @@ export function AppShell({
 
           {mobileOpen && (
             <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-4 space-y-1">
+              <Link
+                href="/portal"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-semibold bg-slate-100 text-[#1E3A5F] hover:bg-slate-200 mb-2 border border-slate-200"
+              >
+                <LayoutGrid className="w-4 h-4 text-[#1E3A5F]" />
+                <span>Menu Utama (Ganti Modul)</span>
+              </Link>
+
               {navigation
                 .filter((item) => item.show)
                 .map((item) => {
@@ -457,11 +474,10 @@ export function AppShell({
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium ${
-                        active
+                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium ${active
                           ? "bg-[#1E3A5F] text-white"
                           : "text-slate-700 hover:bg-slate-100"
-                      }`}
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                       {item.name}
@@ -492,11 +508,10 @@ export function AppShell({
                           key={sub.href}
                           href={sub.href}
                           onClick={() => setMobileOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium ${
-                            active
+                          className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium ${active
                               ? "bg-slate-100 text-[#1E3A5F]"
                               : "text-slate-700 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           <SubIcon className="w-4 h-4 text-slate-500" />
                           {sub.name}

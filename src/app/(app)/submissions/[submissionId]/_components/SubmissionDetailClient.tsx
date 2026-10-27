@@ -106,6 +106,9 @@ type CurrentUser = {
   roles: string[];
 };
 
+type CategoryOption = { id: string; name: string };
+type ManagedUnitOption = { id: string; name: string };
+
 function unwrap<T>(result: SubmissionActionResult<T>): T {
   if (!result.ok) throw new ApiError(result.message);
   return result.data;
@@ -114,9 +117,15 @@ function unwrap<T>(result: SubmissionActionResult<T>): T {
 export default function SubmissionDetailClient({
   initialSubmission,
   user,
+  initialEditMode = false,
+  categories,
+  managedUnits,
 }: {
   initialSubmission: SubmissionDetail;
   user: CurrentUser;
+  initialEditMode?: boolean;
+  categories: CategoryOption[];
+  managedUnits: ManagedUnitOption[];
 }) {
   const submissionId = initialSubmission.id;
   const router = useRouter();
@@ -131,9 +140,27 @@ export default function SubmissionDetailClient({
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Revision edit mode
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditMode && initialSubmission.permissions.canEdit);
   const [editItems, setEditItems] = useState<SubmissionItem[]>(initialSubmission.items);
+  const [editCategoryId, setEditCategoryId] = useState(initialSubmission.category.id);
+  const [editUnitId, setEditUnitId] = useState(initialSubmission.unit.id);
+
+  function startEditing() {
+    if (!submission) return;
+    setErrorMsg("");
+    setEditItems(submission.items);
+    setEditCategoryId(submission.category.id);
+    setEditUnitId(submission.unit.id);
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    if (submission) setEditItems(submission.items);
+    if (submission) setEditCategoryId(submission.category.id);
+    if (submission) setEditUnitId(submission.unit.id);
+    setErrorMsg("");
+    setIsEditing(false);
+  }
 
   async function handleExecuteAction() {
     if (!actionModal.type || !submission) return;
@@ -208,9 +235,18 @@ export default function SubmissionDetailClient({
     setSubmission(refreshed);
   }
 
-  async function handleSaveAndResubmitRevision() {
+  async function handleSaveChanges() {
     if (!submission) return;
     setErrorMsg("");
+
+    if (submission.status === "DRAFT" && !editCategoryId) {
+      setErrorMsg("Pilih kategori pengadaan");
+      return;
+    }
+    if (submission.status === "DRAFT" && user.roles.includes("UNIT_MANAGER") && !editUnitId) {
+      setErrorMsg("Pilih unit kerja yang akan mengajukan pengadaan");
+      return;
+    }
 
     for (let i = 0; i < editItems.length; i++) {
       const it = editItems[i];
@@ -227,6 +263,10 @@ export default function SubmissionDetailClient({
     setActionLoading(true);
     try {
       await unwrap(await updateSubmissionAction(submission.id, {
+        ...(submission.status === "DRAFT" ? {
+          categoryId: editCategoryId,
+          ...(user.roles.includes("UNIT_MANAGER") ? { unitId: editUnitId } : {}),
+        } : {}),
         items: editItems.map((it) => ({
           name: it.name.trim(),
           quantity: Number(it.quantity),
@@ -236,10 +276,15 @@ export default function SubmissionDetailClient({
         })),
       }));
 
-      await unwrap(await resubmitRevisionAction(submission.id));
+      if (submission.status === "NEEDS_REVISION") {
+        await unwrap(await resubmitRevisionAction(submission.id));
+      }
 
       setIsEditing(false);
       const refreshed = unwrap(await getSubmissionAction(submission.id)) as SubmissionDetail;
+      setEditItems(refreshed.items);
+      setEditCategoryId(refreshed.category.id);
+      setEditUnitId(refreshed.unit.id);
       setSubmission(refreshed);
     } catch (err) {
       if (err instanceof ApiError) setErrorMsg(err.message);
@@ -310,7 +355,7 @@ export default function SubmissionDetailClient({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {submission.status === "DRAFT" && isRequester && (
+          {submission.status === "DRAFT" && isRequester && !isEditing && (
             <button
               type="button"
               onClick={handleSubmitDraft}
@@ -325,11 +370,11 @@ export default function SubmissionDetailClient({
           {submission.permissions.canEdit && !isEditing && (
               <button
                 type="button"
-                onClick={() => setIsEditing(true)}
+              onClick={startEditing}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer"
               >
                 <Edit3 className="w-4 h-4 text-amber-800" />
-                Perbaiki & Kirim Ulang Revisi
+                {submission.status === "DRAFT" ? "Edit Draft" : "Perbaiki & Kirim Ulang Revisi"}
               </button>
             )}
 
@@ -444,17 +489,13 @@ export default function SubmissionDetailClient({
                 <span className="text-slate-400 block text-[11px]">
                   Kategori Barang
                 </span>
-                <span className="font-semibold text-slate-800">
-                  {submission.category.name}
-                </span>
+                {isEditing && submission.status === "DRAFT" ? <select aria-label="Kategori pengadaan" value={editCategoryId} onChange={(event) => setEditCategoryId(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F]">{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select> : <span className="font-semibold text-slate-800">{submission.category.name}</span>}
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">
                   Unit Kerja
                 </span>
-                <span className="font-semibold text-slate-800">
-                  {submission.unit.name}
-                </span>
+                {isEditing && submission.status === "DRAFT" && user.roles.includes("UNIT_MANAGER") ? <select aria-label="Unit pemohon" value={editUnitId} onChange={(event) => setEditUnitId(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F]"><option value="">Pilih unit kerja</option>{managedUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select> : <span className="font-semibold text-slate-800">{submission.unit.name}</span>}
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">
@@ -496,8 +537,9 @@ export default function SubmissionDetailClient({
                 ),
               )
             }
-            onCancelEdit={() => setIsEditing(false)}
-            onSaveRevision={handleSaveAndResubmitRevision}
+            onCancelEdit={cancelEditing}
+            onSaveChanges={handleSaveChanges}
+            saveLabel={submission.status === "DRAFT" ? "Simpan Perubahan Draft" : "Simpan & Kirim Ulang Revisi"}
           />
 
           <SubmissionAttachments

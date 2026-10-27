@@ -15,7 +15,11 @@ export const submissionInputSchema = z.object({
   items: z.array(itemSchema).min(1).max(100),
 });
 
-export const updateSubmissionSchema = submissionInputSchema.omit({ categoryId: true, unitId: true });
+export const updateSubmissionSchema = z.object({
+  categoryId: z.uuid().optional(),
+  unitId: z.uuid().optional(),
+  items: z.array(itemSchema).min(1).max(100),
+});
 
 export const actionSchema = z.object({
   action: z.enum(["APPROVE", "REJECT", "REQUEST_REVISION"]),

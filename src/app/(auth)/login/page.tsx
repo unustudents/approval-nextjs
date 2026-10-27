@@ -27,7 +27,7 @@ export default function LoginPage() {
         username: username.trim(),
         password,
       });
-      router.replace("/dashboard");
+      router.replace("/portal");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {

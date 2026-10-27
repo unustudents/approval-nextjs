@@ -1,26 +1,40 @@
 import { Suspense } from "react";
+import { prisma } from "@/lib/prisma";
 import { getSubmission } from "@/app/api/submissions/_lib/submission-service";
+import { listManagedUnits } from "@/app/api/submissions/_lib/submission-service";
 import { requireSession } from "@/lib/session";
 import SubmissionDetailClient, { type SubmissionDetail } from "./_components/SubmissionDetailClient";
 
 export default function SubmissionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ submissionId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
-  return <Suspense fallback={<SubmissionDetailLoading />}><SubmissionDetailPageContent params={params} /></Suspense>;
+  return <Suspense fallback={<SubmissionDetailLoading />}><SubmissionDetailPageContent params={params} searchParams={searchParams} /></Suspense>;
 }
 
 async function SubmissionDetailPageContent({
   params,
+  searchParams,
 }: {
   params: Promise<{ submissionId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
-  const [user, { submissionId }] = await Promise.all([requireSession(), params]);
-  const submission = await getSubmission(user, submissionId);
+  const [user, { submissionId }, { edit }] = await Promise.all([requireSession(), params, searchParams]);
+  const [submission, categories, managedUnits] = await Promise.all([
+    getSubmission(user, submissionId),
+    prisma.category.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    user.roles.includes("UNIT_MANAGER") ? listManagedUnits(user) : Promise.resolve([]),
+  ]);
   const initialSubmission = JSON.parse(JSON.stringify(submission)) as SubmissionDetail;
 
-  return <SubmissionDetailClient initialSubmission={initialSubmission} user={user} />;
+  return <SubmissionDetailClient initialSubmission={initialSubmission} user={user} initialEditMode={edit === "1"} categories={categories} managedUnits={managedUnits} />;
 }
 
 function SubmissionDetailLoading() {

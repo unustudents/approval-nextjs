@@ -31,7 +31,8 @@ export function SubmissionItemsTable({
   onRemoveEditItem,
   onEditItemChange,
   onCancelEdit,
-  onSaveRevision,
+  onSaveChanges,
+  saveLabel,
 }: {
   items: SubmissionItem[];
   isEditing: boolean;
@@ -50,7 +51,8 @@ export function SubmissionItemsTable({
     value: string | number,
   ) => void;
   onCancelEdit: () => void;
-  onSaveRevision: () => void;
+  onSaveChanges: () => void;
+  saveLabel: string;
 }) {
   const displayedItems = isEditing ? editItems : items;
   const grandTotal = displayedItems.reduce(
@@ -229,11 +231,11 @@ export function SubmissionItemsTable({
               </button>
               <button
                 type="button"
-                onClick={onSaveRevision}
+                onClick={onSaveChanges}
                 disabled={actionLoading}
                 className="px-4 py-1.5 text-xs font-semibold text-white bg-[#1E3A5F] hover:bg-[#162C47] rounded cursor-pointer disabled:opacity-50"
               >
-                {actionLoading ? "Menyimpan..." : "Simpan & Kirim Ulang Revisi"}
+                {actionLoading ? "Menyimpan..." : saveLabel}
               </button>
             </div>
           </div>
