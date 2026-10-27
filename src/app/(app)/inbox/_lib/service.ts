@@ -1,11 +1,11 @@
-import { handleApi } from "@/lib/http";
+import "server-only";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/session";
+import type { SessionUser } from "@/lib/session";
+import type { InboxItem } from "./model";
 
-export async function GET() {
-  return handleApi(async () => {
-    const user = await requireSession();
-    const approvalSubmissions = await prisma.submission.findMany({
+export async function listInboxTasks(user: SessionUser): Promise<InboxItem[]> {
+  const [approvalSubmissions, explanationRequests] = await Promise.all([
+    prisma.submission.findMany({
       where: {
         status: { in: ["WAITING_UNIT_MANAGER", "WAITING_FINANCE"] },
         currentStep: {
@@ -23,9 +23,8 @@ export async function GET() {
         currentStep: { select: { id: true, order: true } },
       },
       orderBy: { submittedAt: "asc" },
-    });
-
-    const explanationRequests = await prisma.explanationRequest.findMany({
+    }),
+    prisma.explanationRequest.findMany({
       where: { recipientId: user.id, status: "PENDING" },
       include: {
         submission: {
@@ -37,16 +36,19 @@ export async function GET() {
         },
       },
       orderBy: { createdAt: "asc" },
-    });
+    }),
+  ]);
 
-    return [
-      ...approvalSubmissions.map((submission) => ({ ...submission, taskType: "APPROVAL" as const })),
-      ...explanationRequests.map((request) => ({
-        ...request.submission,
-        taskType: "EXPLANATION" as const,
-        explanationRequestId: request.id,
-        currentStep: null,
-      })),
-    ];
-  });
+  return [
+    ...approvalSubmissions.map((submission) => ({
+      ...submission,
+      taskType: "APPROVAL" as const,
+    })),
+    ...explanationRequests.map((request) => ({
+      ...request.submission,
+      taskType: "EXPLANATION" as const,
+      explanationRequestId: request.id,
+      currentStep: null,
+    })),
+  ];
 }
