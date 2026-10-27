@@ -1,373 +1,87 @@
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
-import {
-  Search,
-  Filter,
-  PlusCircle,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react";
-import { api } from "@/lib/api-client";
-import { useCurrentUser } from "@/app/(app)/_components/AppShell";
-import {
-  StatusBadge,
-  SubmissionStatus,
-  roleDisplayName,
-} from "@/components/StatusBadge";
+import { ChevronLeft, ChevronRight, FileText, Filter, PlusCircle, RefreshCw, Search } from "lucide-react";
+import { listQuerySchema } from "@/app/api/submissions/_lib/schema";
+import { listSubmissions } from "@/app/api/submissions/_lib/submission-service";
+import { StatusBadge, roleDisplayName } from "@/components/StatusBadge";
+import { requireSession } from "@/lib/session";
 
-interface SubmissionListItem {
-  id: string;
-  number: string;
-  status: SubmissionStatus;
-  createdAt: string;
-  submittedAt: string | null;
-  requester: { id: string; name: string };
-  unit: { id: string; name: string };
-  category: { id: string; name: string };
-  currentStep?: {
-    type: string;
-    targetRole: string | null;
-    targetUser?: { id: string; name: string } | null;
-  } | null;
-}
-
-interface PaginationInfo {
-  page: number;
-  pageSize: number;
-  total: number;
-  pageCount: number;
-}
-
-const statusOptions: Array<{ value: string; label: string }> = [
-  { value: "", label: "Semua Status" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "WAITING_UNIT_MANAGER", label: "Menunggu Manager Unit" },
-  { value: "WAITING_FINANCE", label: "Menunggu Keuangan" },
-  { value: "NEEDS_REVISION", label: "Perlu Revisi" },
-  { value: "APPROVED", label: "Disetujui" },
-  { value: "REJECTED", label: "Ditolak" },
+const statusOptions = [
+  { value: "", label: "Semua Status" }, { value: "DRAFT", label: "Draft" },
+  { value: "WAITING_UNIT_MANAGER", label: "Menunggu Manager Unit" }, { value: "WAITING_FINANCE", label: "Menunggu Keuangan" },
+  { value: "NEEDS_REVISION", label: "Perlu Revisi" }, { value: "APPROVED", label: "Disetujui" }, { value: "REJECTED", label: "Ditolak" },
 ];
+type SearchParams = { q?: string; status?: string; page?: string };
 
-export default function SubmissionsPage() {
-  const user = useCurrentUser();
-  const [submissions, setSubmissions] = useState<SubmissionListItem[]>([]);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    pageSize: 15,
-    total: 0,
-    pageCount: 1,
-  });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [loading, setLoading] = useState(true);
+function submissionUrl({ q, status, page }: SearchParams) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  if (page && page !== "1") params.set("page", page);
+  const query = params.toString();
+  return query ? `/submissions?${query}` : "/submissions";
+}
 
-  const fetchSubmissions = useCallback(
-    async (page: number, q: string, status: string) => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("pageSize", "15");
-        if (q.trim()) params.set("q", q.trim());
-        if (status) params.set("status", status);
+function formatCurrentStep(submission: { status: string; currentStep?: { targetRole: string | null; targetUser?: { name: string } | null } | null }) {
+  if (submission.status === "APPROVED") return "Selesai (Disetujui)";
+  if (submission.status === "REJECTED") return "Selesai (Ditolak)";
+  if (submission.status === "DRAFT") return "Pemohon (Draft)";
+  if (submission.status === "NEEDS_REVISION") return "Pemohon (Revisi Diperlukan)";
+  return submission.currentStep?.targetUser?.name ?? (submission.currentStep?.targetRole ? roleDisplayName(submission.currentStep.targetRole) : "Sedang Diproses");
+}
 
-        const res = await api.get<{
-          data: SubmissionListItem[];
-          pagination: PaginationInfo;
-        }>(`/api/submissions?${params.toString()}`);
+export default function SubmissionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  return <Suspense fallback={<SubmissionsLoading />}><SubmissionsPageContent searchParams={searchParams} /></Suspense>;
+}
 
-        setSubmissions(res.data);
-        setPagination(res.pagination);
-      } catch (err) {
-        console.error("Gagal memuat daftar pengajuan", err);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadInitialSubmissions() {
-      try {
-        const res = await api.get<{
-          data: SubmissionListItem[];
-          pagination: PaginationInfo;
-        }>("/api/submissions?page=1&pageSize=15");
-        if (!active) return;
-        setSubmissions(res.data);
-        setPagination(res.pagination);
-      } catch (err) {
-        console.error("Gagal memuat daftar pengajuan", err);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    void loadInitialSubmissions();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  function handleSearchSubmit(e: React.SubmitEvent) {
-    e.preventDefault();
-    fetchSubmissions(1, searchQuery, selectedStatus);
-  }
-
-  function handleStatusChange(status: string) {
-    setSelectedStatus(status);
-    fetchSubmissions(1, searchQuery, status);
-  }
-
-  function handlePageChange(newPage: number) {
-    if (newPage < 1 || newPage > pagination.pageCount) return;
-    fetchSubmissions(newPage, searchQuery, selectedStatus);
-  }
-
-  function formatCurrentStep(sub: SubmissionListItem): string {
-    if (sub.status === "APPROVED") return "Selesai (Disetujui)";
-    if (sub.status === "REJECTED") return "Selesai (Ditolak)";
-    if (sub.status === "DRAFT") return "Pemohon (Draft)";
-    if (sub.status === "NEEDS_REVISION") return "Pemohon (Revisi Diperlukan)";
-
-    if (sub.currentStep?.targetUser?.name) {
-      return sub.currentStep.targetUser.name;
-    }
-    if (sub.currentStep?.targetRole) {
-      return roleDisplayName(sub.currentStep.targetRole);
-    }
-    return "Sedang Diproses";
-  }
-
-  const isRequester = user?.roles.includes("REQUESTER") || user?.roles.includes("UNIT_MANAGER") || user?.roles.includes("SUPERADMIN");
-  const canSeeRequesterColumn = user !== null && !user.roles.every((role) => role === "REQUESTER");
+async function SubmissionsPageContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const [user, rawSearchParams] = await Promise.all([requireSession(), searchParams]);
+  const parsedFilters = listQuerySchema.safeParse({ ...rawSearchParams, pageSize: 15 });
+  const filters = parsedFilters.success ? parsedFilters.data : { q: undefined, status: undefined, page: 1, pageSize: 15 };
+  const { data: submissions, pagination } = await listSubmissions(user, filters);
+  const isRequester = user.roles.some((role) => ["REQUESTER", "UNIT_MANAGER", "SUPERADMIN"].includes(role));
+  const canSeeRequesterColumn = !user.roles.every((role) => role === "REQUESTER");
+  const activeQuery = filters.q ?? "";
+  const activeStatus = filters.status ?? "";
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Daftar Pengajuan Pembelian
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cari dan monitor status proses approval seluruh berkas pengadaan
-            kantor.
-          </p>
-        </div>
-
-        {isRequester && (
-          <Link
-            href="/submissions/new"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-semibold text-white bg-[#1E3A5F] hover:bg-[#162C47] shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Buat Pengajuan Baru
-          </Link>
-        )}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-xl font-bold tracking-tight text-slate-900">Daftar Pengajuan Pembelian</h1><p className="mt-0.5 text-xs text-slate-500">Cari dan monitor status proses approval seluruh berkas pengadaan kantor.</p></div>
+        {isRequester ? <Link href="/submissions/new" className="inline-flex self-start items-center gap-2 rounded-md bg-[#1E3A5F] px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#162C47] sm:self-auto"><PlusCircle className="size-4" aria-hidden="true" />Buat Pengajuan Baru</Link> : null}
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-        <form
-          onSubmit={handleSearchSubmit}
-          className="flex flex-col md:flex-row items-stretch md:items-center gap-3"
-        >
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nomor pengajuan, nama pemohon, atau kategori..."
-              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] bg-white transition-colors"
-            />
-          </div>
-
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <form className="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+          <div className="relative flex-1"><Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-slate-400" aria-hidden="true" /><input name="q" type="search" defaultValue={activeQuery} placeholder="Cari nomor pengajuan, nama pemohon, atau kategori..." className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs placeholder:text-slate-400 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F]" /></div>
           <div className="flex items-center gap-2">
-            <div className="relative min-w-[200px]">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <Filter className="w-3.5 h-3.5" />
-              </div>
-              <select
-                value={selectedStatus}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className="w-full pl-8 pr-8 py-2 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F] cursor-pointer"
-              >
-                {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-md transition-colors cursor-pointer"
-            >
-              Cari
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSelectedStatus("");
-                fetchSubmissions(1, "", "");
-              }}
-              title="Reset Filter"
-              className="p-2 border border-slate-300 text-slate-500 hover:text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="relative min-w-[200px]"><Filter className="pointer-events-none absolute inset-y-0 left-3 my-auto size-3.5 text-slate-400" aria-hidden="true" /><select name="status" defaultValue={activeStatus} className="w-full cursor-pointer rounded-md border border-slate-300 bg-white py-2 pl-8 pr-8 text-xs text-slate-700 focus:border-[#1E3A5F] focus:ring-1 focus:ring-[#1E3A5F]">{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+            <button type="submit" className="cursor-pointer rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-200">Cari</button>
+            <Link href="/submissions" title="Reset Filter" className="rounded-md border border-slate-300 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"><RefreshCw className="size-3.5" aria-hidden="true" /><span className="sr-only">Reset Filter</span></Link>
           </div>
         </form>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
         <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-12 text-center text-xs text-slate-500">
-              Memuat data pengajuan...
-            </div>
-          ) : submissions.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-700">
-                Tidak ada pengajuan ditemukan
-              </p>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                {searchQuery || selectedStatus
-                  ? "Tidak ada data yang cocok dengan kriteria pencarian Anda. Coba ubah kata kunci atau reset filter."
-                  : "Belum ada berkas pengajuan dalam sistem. Pengajuan baru dapat dibuat oleh Kepala Unit atau Supervisor."}
-              </p>
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Nomor Berkas</th>
-                  <th className="py-3 px-4">Tanggal Pengajuan</th>
-                  {canSeeRequesterColumn && (
-                    <th className="py-3 px-4">Pemohon & Unit</th>
-                  )}
-                  <th className="py-3 px-4">Kategori</th>
-                  <th className="py-3 px-4">Posisi Saat Ini</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Tindakan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {submissions.map((sub) => (
-                  <tr
-                    key={sub.id}
-                    className="hover:bg-slate-50/80 transition-colors"
-                  >
-                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 whitespace-nowrap">
-                      {sub.number}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
-                      {new Date(sub.createdAt).toLocaleDateString("id-ID", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                    {canSeeRequesterColumn && (
-                      <td className="py-3.5 px-4">
-                        <div className="font-medium text-slate-900">
-                          {sub.requester.name}
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {sub.unit.name}
-                        </div>
-                      </td>
-                    )}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 font-medium">
-                        {sub.category.name}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                      <span className="font-medium">
-                        {formatCurrentStep(sub)}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <StatusBadge status={sub.status} />
-                    </td>
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <Link
-                        href={`/submissions/${sub.id}`}
-                        className="inline-flex items-center gap-1 font-semibold text-[#1E3A5F] hover:text-[#162C47] hover:underline"
-                      >
-                        Buka Detail &rarr;
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+          {submissions.length === 0 ? <div className="p-12 text-center"><FileText className="mx-auto mb-3 size-10 text-slate-300" aria-hidden="true" /><p className="text-sm font-semibold text-slate-700">Tidak ada pengajuan ditemukan</p><p className="mx-auto mt-1 max-w-sm text-xs text-slate-400">{activeQuery || activeStatus ? "Tidak ada data yang cocok dengan kriteria pencarian Anda. Coba ubah kata kunci atau reset filter." : "Belum ada berkas pengajuan dalam sistem. Pengajuan baru dapat dibuat oleh Kepala Unit atau Supervisor."}</p></div> : (
+            <table className="w-full text-left text-xs"><thead className="border-b border-slate-200 bg-slate-50 font-semibold uppercase tracking-wider text-slate-600"><tr><th className="px-4 py-3">Nomor Berkas</th><th className="px-4 py-3">Tanggal Pengajuan</th>{canSeeRequesterColumn ? <th className="px-4 py-3">Pemohon & Unit</th> : null}<th className="px-4 py-3">Kategori</th><th className="px-4 py-3">Posisi Saat Ini</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Tindakan</th></tr></thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">{submissions.map((submission) => <tr key={submission.id} className="transition-colors hover:bg-slate-50/80"><td className="whitespace-nowrap px-4 py-3.5 font-mono font-semibold text-slate-900">{submission.number}</td><td className="whitespace-nowrap px-4 py-3.5 text-slate-500">{submission.createdAt.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</td>{canSeeRequesterColumn ? <td className="px-4 py-3.5"><div className="font-medium text-slate-900">{submission.requester.name}</div><div className="text-[11px] text-slate-400">{submission.unit.name}</div></td> : null}<td className="whitespace-nowrap px-4 py-3.5"><span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">{submission.category.name}</span></td><td className="whitespace-nowrap px-4 py-3.5 text-slate-600"><span className="font-medium">{formatCurrentStep(submission)}</span></td><td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={submission.status} /></td><td className="whitespace-nowrap px-4 py-3.5 text-right"><Link href={`/submissions/${submission.id}`} className="inline-flex items-center gap-1 font-semibold text-[#1E3A5F] hover:text-[#162C47] hover:underline">Buka Detail &rarr;</Link></td></tr>)}</tbody>
             </table>
           )}
         </div>
-
-        {!loading && pagination.total > 0 && (
-          <div className="px-5 py-3.5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white text-xs text-slate-500">
-            <div>
-              Menampilkan{" "}
-              <span className="font-medium text-slate-700">
-                {(pagination.page - 1) * pagination.pageSize + 1}
-              </span>{" "}
-              -{" "}
-              <span className="font-medium text-slate-700">
-                {Math.min(
-                  pagination.page * pagination.pageSize,
-                  pagination.total,
-                )}
-              </span>{" "}
-              dari{" "}
-              <span className="font-medium text-slate-700">
-                {pagination.total}
-              </span>{" "}
-              pengajuan
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pagination.page <= 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
-                className="p-1.5 border border-slate-200 rounded-md text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                aria-label="Halaman Sebelumnya"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <span className="px-2 text-slate-700 font-medium">
-                {pagination.page} / {pagination.pageCount || 1}
-              </span>
-
-              <button
-                type="button"
-                disabled={pagination.page >= pagination.pageCount}
-                onClick={() => handlePageChange(pagination.page + 1)}
-                className="p-1.5 border border-slate-200 rounded-md text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                aria-label="Halaman Berikutnya"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
+        {pagination.total > 0 ? <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3.5 text-xs text-slate-500 sm:flex-row"><div>Menampilkan <span className="font-medium text-slate-700">{(pagination.page - 1) * pagination.pageSize + 1}</span> - <span className="font-medium text-slate-700">{Math.min(pagination.page * pagination.pageSize, pagination.total)}</span> dari <span className="font-medium text-slate-700">{pagination.total}</span> pengajuan</div><div className="flex items-center gap-2">{pagination.page > 1 ? <Link href={submissionUrl({ q: activeQuery, status: activeStatus, page: String(pagination.page - 1) })} className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" aria-label="Halaman Sebelumnya"><ChevronLeft className="size-4" aria-hidden="true" /></Link> : <span className="rounded-md border border-slate-200 p-1.5 text-slate-400" aria-hidden="true"><ChevronLeft className="size-4" /></span>}<span className="px-2 font-medium text-slate-700">{pagination.page} / {pagination.pageCount || 1}</span>{pagination.page < pagination.pageCount ? <Link href={submissionUrl({ q: activeQuery, status: activeStatus, page: String(pagination.page + 1) })} className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" aria-label="Halaman Berikutnya"><ChevronRight className="size-4" aria-hidden="true" /></Link> : <span className="rounded-md border border-slate-200 p-1.5 text-slate-400" aria-hidden="true"><ChevronRight className="size-4" /></span>}</div></div> : null}
       </div>
+    </div>
+  );
+}
+
+function SubmissionsLoading() {
+  return (
+    <div className="animate-pulse space-y-5">
+      <div className="space-y-2"><div className="h-6 w-64 rounded bg-slate-200" /><div className="h-4 w-full max-w-xl rounded bg-slate-100" /></div>
+      <div className="h-16 rounded-xl border border-slate-200 bg-white" />
+      <div className="h-96 rounded-xl border border-slate-200 bg-white" />
     </div>
   );
 }

@@ -2,8 +2,14 @@
 
 import { useState } from "react";
 import { MessageSquarePlus, Send, UserRound } from "lucide-react";
-import { api, ApiError } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
 import { roleDisplayName } from "@/components/StatusBadge";
+import {
+  getConsiderationCandidatesAction,
+  requestConsiderationAction,
+  respondToConsiderationAction,
+  type SubmissionActionResult,
+} from "../../_lib/actions";
 
 type Candidate = {
   id: string;
@@ -23,6 +29,11 @@ type Request = {
   createdAt: string;
   respondedAt: string | null;
 };
+
+function unwrap<T>(result: SubmissionActionResult<T>): T {
+  if (!result.ok) throw new ApiError(result.message);
+  return result.data;
+}
 
 export function ConsiderationPanel({ submissionId, canRequest, currentUserId, currentUserRoles, requests, onChanged }: {
   submissionId: string;
@@ -44,7 +55,7 @@ export function ConsiderationPanel({ submissionId, canRequest, currentUserId, cu
   async function openRequest() {
     setError("");
     try {
-      const data = await api.get<Candidate[]>(`/api/submissions/${submissionId}/considerations`);
+      const data = unwrap(await getConsiderationCandidatesAction(submissionId)) as Candidate[];
       if (data.length === 0) {
         setError("Belum ada akun lain yang aktif dengan role Pemberi Pertimbangan.");
         return;
@@ -63,7 +74,7 @@ export function ConsiderationPanel({ submissionId, canRequest, currentUserId, cu
     setLoading(true);
     setError("");
     try {
-      await api.post(`/api/submissions/${submissionId}/considerations`, { recipientId, message: message.trim() });
+      await unwrap(await requestConsiderationAction(submissionId, { recipientId, message: message.trim() }));
       await onChanged();
       setOpen(false);
       setMessage("");
@@ -80,7 +91,7 @@ export function ConsiderationPanel({ submissionId, canRequest, currentUserId, cu
     setLoading(true);
     setError("");
     try {
-      await api.post(`/api/submissions/${submissionId}/considerations/${responseFor}/response`, { response: response.trim() });
+      await unwrap(await respondToConsiderationAction(submissionId, responseFor, { response: response.trim() }));
       await onChanged();
       setResponseFor(null);
       setResponse("");

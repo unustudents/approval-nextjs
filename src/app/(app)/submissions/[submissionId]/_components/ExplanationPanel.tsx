@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { CircleHelp, Send } from "lucide-react";
-import { api, ApiError } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
+import {
+  answerExplanationAction,
+  requestExplanationAction,
+  type SubmissionActionResult,
+} from "../../_lib/actions";
 
 type ExplanationRequest = {
   id: string;
@@ -14,6 +19,11 @@ type ExplanationRequest = {
   createdAt: string;
   answeredAt: string | null;
 };
+
+function unwrap<T>(result: SubmissionActionResult<T>): T {
+  if (!result.ok) throw new ApiError(result.message);
+  return result.data;
+}
 
 export function ExplanationPanel({ submissionId, canRequest, currentUserId, requests, onChanged }: {
   submissionId: string;
@@ -33,7 +43,7 @@ export function ExplanationPanel({ submissionId, canRequest, currentUserId, requ
     if (!text.trim()) return;
     setLoading(true); setError("");
     try {
-      await api.post(`/api/submissions/${submissionId}/explanations`, { question: text.trim() });
+      await unwrap(await requestExplanationAction(submissionId, { question: text.trim() }));
       await onChanged(); setRequestOpen(false); setText("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Gagal mengirim permintaan penjelasan");
@@ -45,7 +55,7 @@ export function ExplanationPanel({ submissionId, canRequest, currentUserId, requ
     if (!answerFor || !text.trim()) return;
     setLoading(true); setError("");
     try {
-      await api.post(`/api/submissions/${submissionId}/explanations/${answerFor}/answer`, { answer: text.trim() });
+      await unwrap(await answerExplanationAction(submissionId, answerFor, { answer: text.trim() }));
       await onChanged(); setAnswerFor(null); setText("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Gagal mengirim penjelasan");
