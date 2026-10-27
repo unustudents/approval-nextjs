@@ -6,13 +6,7 @@ import {
   type LucideIcon,
   XCircle,
 } from "lucide-react";
-
-export interface DashboardStats {
-  pending: number;
-  approved: number;
-  rejected: number;
-  averageApprovalMilliseconds: number | null;
-}
+import type { DashboardStats } from "../_lib/model";
 
 export function formatDuration(ms: number | null): string {
   if (ms === null || ms === undefined) return "Belum ada data";
@@ -70,10 +64,8 @@ export function DashboardStatCard({
 
 export function DashboardStatsCards({
   stats,
-  loading,
 }: {
-  stats: DashboardStats | null;
-  loading: boolean;
+  stats: DashboardStats;
 }) {
   const cards: DashboardStatCardProps[] = [
     /*
@@ -92,32 +84,28 @@ export function DashboardStatsCards({
       title: "Total Pengajuan",
       icon: FileText,
       iconClassName: "bg-blue-50 text-blue-700",
-      value: loading
-        ? "..."
-        : (stats?.pending ?? 0) +
-          (stats?.approved ?? 0) +
-          (stats?.rejected ?? 0),
+      value: stats.pending + stats.approved + stats.rejected,
       footer: "Total pengajuan yang telah dikirim",
     },
     {
       title: "Pengajuan Pending",
       icon: Hourglass,
       iconClassName: "bg-amber-50 text-amber-700",
-      value: loading ? "..." : (stats?.pending ?? 0),
+      value: stats.pending,
       footer: "Menunggu persetujuan / revisi",
     },
     {
       title: "Pengajuan Disetujui",
       icon: CheckCircle2,
       iconClassName: "bg-emerald-50 text-emerald-700",
-      value: loading ? "..." : (stats?.approved ?? 0),
+      value: stats.approved,
       footer: "Selesai dengan approval final",
     },
     {
       title: "Pengajuan Ditolak",
       icon: XCircle,
       iconClassName: "bg-rose-50 text-rose-700",
-      value: loading ? "..." : (stats?.rejected ?? 0),
+      value: stats.rejected,
       footer: "Tidak disetujui dalam proses approval",
     },
   ];

@@ -2,13 +2,9 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
+import type { DashboardStats } from "./model";
 
-type StatRow = {
-  pending: number;
-  approved: number;
-  rejected: number;
-  averageApprovalMilliseconds: number | null;
-};
+type StatRow = DashboardStats;
 
 function getScopeClause(user: SessionUser) {
   if (
@@ -30,7 +26,7 @@ function getScopeClause(user: SessionUser) {
   return Prisma.sql`AND \`requesterId\` = ${user.id}`;
 }
 
-export async function getApprovalStats(user: SessionUser) {
+export async function getApprovalStats(user: SessionUser): Promise<DashboardStats> {
   const scopeClause = getScopeClause(user);
   const [stats] = await prisma.$queryRaw<StatRow[]>`
     SELECT
@@ -51,4 +47,26 @@ export async function getApprovalStats(user: SessionUser) {
     rejected: stats?.rejected ?? 0,
     averageApprovalMilliseconds: stats?.averageApprovalMilliseconds ?? null,
   };
+}
+
+export async function getInboxTaskCount(user: SessionUser) {
+  const [approvalCount, explanationCount] = await Promise.all([
+    prisma.submission.count({
+      where: {
+        status: { in: ["WAITING_UNIT_MANAGER", "WAITING_FINANCE"] },
+        currentStep: {
+          status: "PENDING",
+          OR: [
+            { targetUserId: user.id },
+            { targetType: "ROLE", targetRole: { in: user.roles } },
+          ],
+        },
+      },
+    }),
+    prisma.explanationRequest.count({
+      where: { recipientId: user.id, status: "PENDING" },
+    }),
+  ]);
+
+  return approvalCount + explanationCount;
 }

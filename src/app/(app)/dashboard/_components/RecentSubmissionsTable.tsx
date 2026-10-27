@@ -1,17 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, FileText } from "lucide-react";
-import { StatusBadge, SubmissionStatus } from "@/components/StatusBadge";
-
-export interface SubmissionSummary {
-  id: string;
-  number: string;
-  status: SubmissionStatus;
-  createdAt: string;
-  submittedAt: string | null;
-  requester: { id: string; name: string };
-  unit: { id: string; name: string };
-  category: { id: string; name: string };
-}
+import { StatusBadge } from "@/components/StatusBadge";
+import type { SubmissionSummary } from "../_lib/model";
 
 export function RecentSubmissionsTable({
   submissions,
