@@ -21,12 +21,10 @@ interface InboxSubmission {
   requester: { id: string; name: string };
   unit: { id: string; name: string };
   category: { id: string; name: string };
-  taskType: "WORKFLOW" | "EXPLANATION";
+  taskType: "APPROVAL" | "EXPLANATION";
   currentStep: {
     id: string;
     order: number;
-    type: "APPROVAL" | "CONSIDERATION";
-    allowRevision: boolean;
   } | null;
 }
 
@@ -109,9 +107,7 @@ export default function InboxPage() {
                     <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-[#1E3A5F]">
                       {item.taskType === "EXPLANATION"
                         ? "Menunggu Penjelasan Anda"
-                        : item.currentStep?.type === "CONSIDERATION"
-                          ? "Pertimbangan Teknis"
-                          : `Approval Tahap ${item.currentStep?.order}`}
+                        : `Approval Tahap ${item.currentStep?.order}`}
                     </span>
                   </div>
 

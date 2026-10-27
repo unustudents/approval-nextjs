@@ -1,8 +1,6 @@
 export type SubmissionStatus =
   | "DRAFT"
   | "WAITING_UNIT_MANAGER"
-  | "WAITING_CONSIDERATION"
-  | "WAITING_APPROVAL"
   | "WAITING_FINANCE"
   | "NEEDS_REVISION"
   | "APPROVED"
@@ -25,20 +23,6 @@ const statusConfig: Record<
     text: "text-blue-700",
     border: "border-blue-200",
     dot: "bg-blue-500",
-  },
-  WAITING_CONSIDERATION: {
-    label: "Menunggu Pertimbangan",
-    bg: "bg-sky-50",
-    text: "text-sky-700",
-    border: "border-sky-200",
-    dot: "bg-sky-500",
-  },
-  WAITING_APPROVAL: {
-    label: "Menunggu Persetujuan",
-    bg: "bg-indigo-50",
-    text: "text-indigo-700",
-    border: "border-indigo-200",
-    dot: "bg-indigo-500",
   },
   WAITING_FINANCE: {
     label: "Menunggu Keuangan",

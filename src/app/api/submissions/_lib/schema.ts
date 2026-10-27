@@ -18,7 +18,7 @@ export const submissionInputSchema = z.object({
 export const updateSubmissionSchema = submissionInputSchema.omit({ categoryId: true, unitId: true });
 
 export const actionSchema = z.object({
-  action: z.enum(["APPROVE", "REJECT", "REQUEST_REVISION", "CONSIDERATION", "SKIP"]),
+  action: z.enum(["APPROVE", "REJECT", "REQUEST_REVISION"]),
   note: z.string().trim().max(2000).optional(),
 });
 
@@ -44,8 +44,6 @@ export const listQuerySchema = z.object({
   status: z.enum([
     "DRAFT",
     "WAITING_UNIT_MANAGER",
-    "WAITING_CONSIDERATION",
-    "WAITING_APPROVAL",
     "WAITING_FINANCE",
     "NEEDS_REVISION",
     "APPROVED",

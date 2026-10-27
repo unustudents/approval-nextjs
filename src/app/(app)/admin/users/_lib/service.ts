@@ -49,7 +49,7 @@ export async function updateUser(actor: SessionUser, id: string, input: { userna
   if (input.status === "INACTIVE" && target.status === "ACTIVE") {
     if (target.managedUnits.some((unit) => unit.status === "ACTIVE")) throw conflict("Tetapkan Manager Unit pengganti sebelum menonaktifkan akun ini");
     const [pendingAssignments, pendingRequests] = await Promise.all([
-      prisma.submissionStep.count({ where: { targetUserId: id, status: "PENDING", submission: { status: { in: ["WAITING_UNIT_MANAGER", "WAITING_CONSIDERATION", "WAITING_APPROVAL", "WAITING_FINANCE"] } } } }),
+      prisma.submissionStep.count({ where: { targetUserId: id, status: "PENDING", submission: { status: { in: ["WAITING_UNIT_MANAGER", "WAITING_FINANCE"] } } } }),
       prisma.considerationRequest.count({ where: { recipientId: id, status: "PENDING" } }),
     ]);
     if (pendingAssignments || pendingRequests) throw conflict("Pengguna masih memiliki tugas atau permintaan pertimbangan yang menunggu tindakan");

@@ -28,7 +28,6 @@ const actionLabel: Record<string, string> = {
   RESUBMITTED: "Mengirim ulang pengajuan",
   SUBMITTED: "Mengirim pengajuan",
   EDITED: "Memperbarui pengajuan",
-  SKIPPED: "Melewati tahapan",
 };
 
 export function SubmissionTimeline({ actions }: { actions: TimelineAction[] }) {

@@ -4,7 +4,6 @@ export interface ActionModalState {
     | "APPROVE"
     | "REJECT"
     | "REQUEST_REVISION"
-    | "CONSIDERATION"
     | "DELETE"
     | null;
   title: string;
@@ -34,7 +33,7 @@ export function SubmissionActionModal({
         </h3>
         <p className="text-xs text-slate-500">
           {modalState.type === "APPROVE"
-            ? "Pengajuan akan disetujui dan dilanjutkan ke tahap berikutnya dalam workflow."
+            ? "Pengajuan akan disetujui dan diteruskan kepada approver berikutnya bila ada."
             : modalState.type === "REJECT"
               ? "Pengajuan akan ditolak secara permanen. Catatan alasan penolakan wajib dicantumkan."
               : modalState.type === "REQUEST_REVISION"

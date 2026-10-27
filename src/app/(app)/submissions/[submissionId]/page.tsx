@@ -11,7 +11,6 @@ import {
   Clock,
   Send,
   Edit3,
-  MessageSquare,
   Trash2,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
@@ -56,7 +55,6 @@ interface SubmissionDetail {
   currentStep?: {
     id: string;
     order: number;
-    type: "APPROVAL" | "CONSIDERATION";
     targetType: string;
     targetRole: string | null;
     targetUser?: { id: string; name: string } | null;
@@ -170,8 +168,7 @@ export default function SubmissionDetailPage({
 
     const requiresNote =
       actionModal.type === "REJECT" ||
-      actionModal.type === "REQUEST_REVISION" ||
-      actionModal.type === "CONSIDERATION";
+      actionModal.type === "REQUEST_REVISION";
 
     if (requiresNote && !actionModal.note.trim()) {
       setErrorMsg("Catatan wajib diisi untuk tindakan ini");
@@ -294,8 +291,6 @@ export default function SubmissionDetailPage({
     submission.currentStep &&
     [
       "WAITING_UNIT_MANAGER",
-      "WAITING_CONSIDERATION",
-      "WAITING_APPROVAL",
       "WAITING_FINANCE",
     ].includes(submission.status) &&
     (submission.currentStep.targetUser?.id === user.id ||
@@ -397,37 +392,15 @@ export default function SubmissionDetailPage({
               <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-[#1E3A5F] mb-1">
                 Tindakan Anda Diperlukan
               </span>
-              <h2 className="text-sm font-bold text-slate-900">
-                {submission.currentStep?.type === "CONSIDERATION"
-                  ? "Tahap Pertimbangan Teknis / Rekomendasi"
-                  : "Tahap Keputusan Persetujuan (Approval)"}
-              </h2>
+              <h2 className="text-sm font-bold text-slate-900">Tahap Keputusan Persetujuan</h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Sebagai {user ? user.roles.map(roleDisplayName).join(", ") : "Approver"},
-                berikan keputusan atau masukan Anda terhadap berkas pengadaan
-                ini.
+                berikan keputusan Anda terhadap berkas pengadaan ini.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {submission.currentStep?.type === "CONSIDERATION" ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActionModal({
-                      open: true,
-                      type: "CONSIDERATION",
-                      title: "Beri Catatan Pertimbangan Teknis",
-                      note: "",
-                    })
-                  }
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 transition-colors cursor-pointer"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  Beri Pertimbangan
-                </button>
-              ) : (
-                <>
+              <>
                   <button
                     type="button"
                     onClick={() =>
@@ -475,8 +448,7 @@ export default function SubmissionDetailPage({
                     <XCircle className="w-4 h-4" />
                     Tolak
                   </button>
-                </>
-              )}
+              </>
             </div>
           </div>
         </div>

@@ -20,7 +20,6 @@ function actionError(error: unknown): CategoryActionResult {
 
 function revalidateCategories() {
   revalidatePath("/admin/categories");
-  revalidatePath("/admin/workflows");
   revalidatePath("/submissions/new");
 }
 

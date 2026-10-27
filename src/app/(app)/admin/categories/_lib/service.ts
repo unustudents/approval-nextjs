@@ -3,7 +3,7 @@ import { notFound } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 export async function listCategories() {
-  return prisma.category.findMany({ select: { id: true, name: true, status: true, workflow: { select: { id: true, name: true, status: true, _count: { select: { steps: true } } } } }, orderBy: { name: "asc" } });
+  return prisma.category.findMany({ select: { id: true, name: true, status: true }, orderBy: { name: "asc" } });
 }
 
 export async function createCategory(name: string) {

@@ -18,7 +18,6 @@ import {
   Users,
   Building,
   Tags,
-  GitBranch,
   Bell,
   LogOut,
   Menu,
@@ -235,7 +234,6 @@ export function AppShell({
     { name: "Pengguna", href: "/admin/users", icon: Users },
     { name: "Unit Kerja", href: "/admin/units", icon: Building },
     { name: "Kategori Barang", href: "/admin/categories", icon: Tags },
-    { name: "Workflow Persetujuan", href: "/admin/workflows", icon: GitBranch },
   ];
 
   return (

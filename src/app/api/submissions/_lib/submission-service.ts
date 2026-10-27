@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import type { Prisma, Role, SubmissionStatus, WorkflowStep } from "@/generated/prisma/client";
+import type { Prisma, Role, SubmissionStatus, SubmissionStep } from "@/generated/prisma/client";
 import { AppError, conflict, forbidden, notFound } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
@@ -11,10 +11,10 @@ const submissionInclude = {
   unit: { select: { id: true, name: true } },
   category: { select: { id: true, name: true } },
   items: true,
-  currentStep: { select: { id: true, order: true, type: true, targetType: true, targetRole: true, status: true, targetUser: { select: { id: true, name: true } } } },
+  currentStep: { select: { id: true, order: true, targetType: true, targetRole: true, status: true, targetUser: { select: { id: true, name: true } } } },
   actions: {
     orderBy: { createdAt: "asc" as const },
-    include: { actor: { select: { id: true, name: true, roles: { select: { role: true } } } }, submissionStep: { select: { order: true, type: true } } },
+    include: { actor: { select: { id: true, name: true, roles: { select: { role: true } } } }, submissionStep: { select: { order: true } } },
   },
   revisions: {
     orderBy: { createdAt: "asc" as const },
@@ -41,10 +41,9 @@ function hasRole(user: SessionUser, role: Role) {
   return user.roles.includes(role);
 }
 
-function statusForStep(step: Pick<WorkflowStep, "type" | "targetType" | "targetRole">): SubmissionStatus {
+function statusForStep(step: Pick<SubmissionStep, "targetType" | "targetRole">): SubmissionStatus {
   if (step.targetType === "UNIT_MANAGER") return "WAITING_UNIT_MANAGER";
-  if (step.type === "CONSIDERATION") return "WAITING_CONSIDERATION";
-  return step.targetRole === "FINANCE_APPROVER" ? "WAITING_FINANCE" : "WAITING_APPROVAL";
+  return "WAITING_FINANCE";
 }
 
 function itemData(
@@ -80,7 +79,7 @@ async function notifyStep(
   }
 
   if (!recipients.length) {
-    throw new AppError("Tahap workflow tidak memiliki penerima aktif", 409, "WORKFLOW_TARGET_UNAVAILABLE");
+    throw new AppError("Tahap approval tidak memiliki penerima aktif", 409, "APPROVAL_TARGET_UNAVAILABLE");
   }
 
   await tx.notification.createMany({
@@ -93,9 +92,9 @@ async function notifyStep(
   });
 }
 
-function actorCanAccess(user: SessionUser, submission: { requesterId: string; workflowSteps: Array<{ targetType: string; targetRole: Role | null; targetUserId: string | null }>; considerationRequests: Array<{ recipientId: string }>; explanationRequests: Array<{ recipientId: string }> }) {
+function actorCanAccess(user: SessionUser, submission: { requesterId: string; approvalSteps: Array<{ targetType: string; targetRole: Role | null; targetUserId: string | null }>; considerationRequests: Array<{ recipientId: string }>; explanationRequests: Array<{ recipientId: string }> }) {
   if (hasRole(user, "SUPERADMIN") || hasRole(user, "GENERAL_AFFAIRS") || submission.requesterId === user.id) return true;
-  return submission.workflowSteps.some((step) =>
+  return submission.approvalSteps.some((step) =>
     step.targetUserId === user.id || (step.targetType === "ROLE" && step.targetRole !== null && hasRole(user, step.targetRole)),
   ) || submission.considerationRequests.some((request) => request.recipientId === user.id) || submission.explanationRequests.some((request) => request.recipientId === user.id);
 }
@@ -103,7 +102,7 @@ function actorCanAccess(user: SessionUser, submission: { requesterId: string; wo
 async function loadAccessibleSubmission(user: SessionUser, id: string) {
   const submission = await prisma.submission.findUnique({
     where: { id },
-    include: { ...submissionInclude, workflowSteps: { select: { targetType: true, targetRole: true, targetUserId: true } } },
+    include: { ...submissionInclude, approvalSteps: { select: { targetType: true, targetRole: true, targetUserId: true } } },
   });
 
   if (!submission || !actorCanAccess(user, submission)) throw notFound();
@@ -168,7 +167,7 @@ export async function listManagedUnits(user: SessionUser) {
 export async function submitDraft(user: SessionUser, id: string) {
   const current = await prisma.submission.findUnique({
     where: { id },
-    include: { category: { include: { workflow: { include: { steps: { orderBy: { order: "asc" } } } } } }, unit: true, items: true },
+    include: { category: true, unit: true, items: true },
   });
 
   if (!current) throw notFound();
@@ -176,36 +175,33 @@ export async function submitDraft(user: SessionUser, id: string) {
   if (current.status !== "DRAFT") throw conflict("Hanya draft yang dapat dikirim");
   if (current.items.length === 0) throw conflict("Pengajuan harus memiliki minimal satu barang");
 
-  const configuredSteps = current.category.workflow?.steps ?? [];
-  if (current.category.status !== "ACTIVE" || current.category.workflow?.status !== "ACTIVE" || configuredSteps.length < 2) {
-    throw conflict("Workflow aktif belum dikonfigurasi untuk kategori ini");
-  }
-  if (configuredSteps[0].targetType !== "UNIT_MANAGER" || configuredSteps[0].type !== "APPROVAL") {
-    throw conflict("Tahap pertama workflow harus berupa approval Manager Unit");
-  }
-  if (configuredSteps.at(-1)?.type !== "APPROVAL") {
-    throw conflict("Tahap terakhir workflow harus berupa approval");
-  }
+  if (current.category.status !== "ACTIVE") throw conflict("Kategori pengajuan tidak aktif");
   const managerIsRequester = hasRole(user, "UNIT_MANAGER");
   if (!managerIsRequester && !current.unit.managerId) throw conflict("Unit pemohon belum memiliki Manager Unit");
-  const steps = managerIsRequester ? configuredSteps.slice(1) : configuredSteps;
-  if (!steps.length) throw conflict("Workflow tidak memiliki tahap approval setelah Manager Unit");
+  const financeApproverCount = await prisma.user.count({
+    where: { status: "ACTIVE", roles: { some: { role: "FINANCE_APPROVER" } } },
+  });
+  if (financeApproverCount === 0) throw conflict("Belum ada approver keuangan aktif");
 
-  const initialRows = steps.map((step) => {
-    let targetUserId = step.targetUserId;
-    if (step.targetType === "UNIT_MANAGER") targetUserId = current.unit.managerId;
-    if (step.targetType === "ROLE" && !step.targetRole) throw conflict("Target role workflow belum diatur");
-    if (step.targetType === "USER" && !targetUserId) throw conflict("Target pengguna workflow belum diatur");
-    return {
-      workflowStepId: step.id,
-      order: step.order,
-      type: step.type,
-      targetType: step.targetType,
-      targetRole: step.targetType === "UNIT_MANAGER" ? "UNIT_MANAGER" as const : step.targetRole,
-      targetUserId: targetUserId ?? null,
-      required: step.required,
-      allowRevision: step.allowRevision,
-    };
+  const initialRows: Array<{
+    order: number;
+    targetType: "UNIT_MANAGER" | "ROLE";
+    targetRole: Role | null;
+    targetUserId: string | null;
+  }> = [];
+  if (!managerIsRequester) {
+    initialRows.push({
+      order: 1,
+      targetType: "UNIT_MANAGER",
+      targetRole: "UNIT_MANAGER",
+      targetUserId: current.unit.managerId,
+    });
+  }
+  initialRows.push({
+    order: initialRows.length + 1,
+    targetType: "ROLE",
+    targetRole: "FINANCE_APPROVER",
+    targetUserId: null,
   });
 
   const first = initialRows[0];
@@ -238,7 +234,7 @@ export async function listSubmissions(user: SessionUser, filters: {
 }) {
   const accessFilter: Prisma.SubmissionWhereInput = hasRole(user, "SUPERADMIN") || hasRole(user, "GENERAL_AFFAIRS")
     ? {}
-    : { OR: [{ requesterId: user.id }, { workflowSteps: { some: { OR: [{ targetUserId: user.id }, { targetType: "ROLE", targetRole: { in: user.roles } }] } } }] };
+    : { OR: [{ requesterId: user.id }, { approvalSteps: { some: { OR: [{ targetUserId: user.id }, { targetType: "ROLE", targetRole: { in: user.roles } }] } } }] };
 
   const searchFilter: Prisma.SubmissionWhereInput = filters.q
     ? { OR: [
@@ -260,7 +256,7 @@ export async function listSubmissions(user: SessionUser, filters: {
         requester: { select: { id: true, name: true } },
         unit: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
-        currentStep: { select: { type: true, targetRole: true, targetUser: { select: { id: true, name: true } } } },
+        currentStep: { select: { targetRole: true, targetUser: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: "desc" },
       skip: (filters.page - 1) * filters.pageSize,
@@ -422,7 +418,7 @@ export async function resubmitRevision(user: SessionUser, id: string) {
   return { id, status: newStatus };
 }
 
-export async function actOnSubmission(user: SessionUser, id: string, action: "APPROVE" | "REJECT" | "REQUEST_REVISION" | "CONSIDERATION" | "SKIP", note?: string) {
+export async function actOnSubmission(user: SessionUser, id: string, action: "APPROVE" | "REJECT" | "REQUEST_REVISION", note?: string) {
   const submission = await prisma.submission.findUnique({
     where: { id },
     include: { currentStep: true },
@@ -432,16 +428,11 @@ export async function actOnSubmission(user: SessionUser, id: string, action: "AP
 
   if (step.status !== "PENDING" || submission.status !== statusForStep(step)) throw conflict("Pengajuan tidak sedang menunggu tindakan pada tahap ini");
   if (step.targetUserId !== user.id && !(step.targetType === "ROLE" && step.targetRole !== null && hasRole(user, step.targetRole))) throw forbidden();
-  if (action === "CONSIDERATION" && step.type !== "CONSIDERATION") throw conflict("Tahap ini membutuhkan approval");
-  if (action === "SKIP" && step.required) throw conflict("Tahap ini wajib dijalankan");
-  if (action !== "CONSIDERATION" && action !== "SKIP" && step.type !== "APPROVAL") throw conflict("Tahap ini membutuhkan pertimbangan");
-  if (action === "SKIP" && step.type === "CONSIDERATION" && step.targetType === "UNIT_MANAGER") throw conflict("Manager Unit tidak dapat dilewati");
-  if (action === "REQUEST_REVISION" && !step.allowRevision) throw conflict("Revisi tidak diizinkan pada tahap ini");
-  if ((action === "REJECT" || action === "REQUEST_REVISION" || action === "CONSIDERATION") && !note) {
+  if ((action === "REJECT" || action === "REQUEST_REVISION") && !note) {
     throw new AppError("Catatan wajib diisi untuk tindakan ini", 400, "NOTE_REQUIRED");
   }
 
-  const nextStep = action === "APPROVE" || action === "CONSIDERATION" || action === "SKIP"
+  const nextStep = action === "APPROVE"
     ? await prisma.submissionStep.findFirst({
         where: { submissionId: id, order: { gt: step.order } },
         orderBy: { order: "asc" },
@@ -477,7 +468,7 @@ export async function actOnSubmission(user: SessionUser, id: string, action: "AP
         submissionId: id,
         submissionStepId: step.id,
         actorId: user.id,
-        action: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : action === "REQUEST_REVISION" ? "REVISION_REQUESTED" : action === "CONSIDERATION" ? "CONSIDERATION_GIVEN" : "SKIPPED",
+        action: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "REVISION_REQUESTED",
         actorRole: step.targetType === "UNIT_MANAGER" ? "UNIT_MANAGER" : step.targetRole && hasRole(user, step.targetRole) ? step.targetRole : user.roles[0],
         note,
         resultingStatus: nextStatus,
@@ -522,7 +513,7 @@ export async function requestConsideration(user: SessionUser, submissionId: stri
   const submission = await prisma.submission.findUnique({ where: { id: submissionId }, include: { currentStep: true } });
   if (!submission || !submission.currentStep || !canActOnCurrentStep(user, submission.currentStep)) throw forbidden();
   const currentStep = submission.currentStep;
-  if (!["WAITING_UNIT_MANAGER", "WAITING_CONSIDERATION", "WAITING_APPROVAL", "WAITING_FINANCE"].includes(submission.status)) {
+  if (!["WAITING_UNIT_MANAGER", "WAITING_FINANCE"].includes(submission.status)) {
     throw conflict("Pertimbangan hanya dapat diminta saat pengajuan masih diproses");
   }
   const recipient = await prisma.user.findFirst({ where: { id: recipientId, status: "ACTIVE", roles: { some: { role: "CONSIDERATION" } } }, select: { id: true, name: true } });
@@ -559,7 +550,7 @@ export async function respondToConsideration(user: SessionUser, submissionId: st
 export async function requestExplanation(user: SessionUser, submissionId: string, question: string) {
   const submission = await prisma.submission.findUnique({ where: { id: submissionId }, include: { currentStep: true, requester: { select: { id: true, name: true } } } });
   if (!submission || !submission.currentStep || !canActOnCurrentStep(user, submission.currentStep)) throw forbidden();
-  if (!["WAITING_UNIT_MANAGER", "WAITING_CONSIDERATION", "WAITING_APPROVAL", "WAITING_FINANCE"].includes(submission.status)) throw conflict("Penjelasan hanya dapat diminta saat pengajuan masih diproses");
+  if (!["WAITING_UNIT_MANAGER", "WAITING_FINANCE"].includes(submission.status)) throw conflict("Penjelasan hanya dapat diminta saat pengajuan masih diproses");
   const currentStep = submission.currentStep;
   return prisma.$transaction(async (tx) => {
     const request = await tx.explanationRequest.create({ data: { submissionId, requestedById: user.id, recipientId: submission.requesterId, question } });

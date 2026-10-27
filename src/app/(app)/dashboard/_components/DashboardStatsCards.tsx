@@ -97,7 +97,7 @@ export function DashboardStatsCards({
           {loading ? "..." : (stats?.rejected ?? 0)}
         </div>
         <p className="text-[11px] text-slate-500 mt-1">
-          Tidak disetujui dalam workflow
+          Tidak disetujui dalam proses approval
         </p>
       </div>
     </div>

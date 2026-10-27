@@ -5,9 +5,9 @@ import { requireSession } from "@/lib/session";
 export async function GET() {
   return handleApi(async () => {
     const user = await requireSession();
-    const workflowSubmissions = await prisma.submission.findMany({
+    const approvalSubmissions = await prisma.submission.findMany({
       where: {
-        status: { in: ["WAITING_UNIT_MANAGER", "WAITING_CONSIDERATION", "WAITING_APPROVAL", "WAITING_FINANCE"] },
+        status: { in: ["WAITING_UNIT_MANAGER", "WAITING_FINANCE"] },
         currentStep: {
           status: "PENDING",
           OR: [
@@ -20,7 +20,7 @@ export async function GET() {
         requester: { select: { id: true, name: true } },
         unit: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
-        currentStep: { select: { id: true, order: true, type: true, allowRevision: true } },
+        currentStep: { select: { id: true, order: true } },
       },
       orderBy: { submittedAt: "asc" },
     });
@@ -40,7 +40,7 @@ export async function GET() {
     });
 
     return [
-      ...workflowSubmissions.map((submission) => ({ ...submission, taskType: "WORKFLOW" as const })),
+      ...approvalSubmissions.map((submission) => ({ ...submission, taskType: "APPROVAL" as const })),
       ...explanationRequests.map((request) => ({
         ...request.submission,
         taskType: "EXPLANATION" as const,

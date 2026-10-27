@@ -46,8 +46,6 @@ const statusOptions: Array<{ value: string; label: string }> = [
   { value: "", label: "Semua Status" },
   { value: "DRAFT", label: "Draft" },
   { value: "WAITING_UNIT_MANAGER", label: "Menunggu Manager Unit" },
-  { value: "WAITING_CONSIDERATION", label: "Menunggu Pertimbangan" },
-  { value: "WAITING_APPROVAL", label: "Menunggu Persetujuan" },
   { value: "WAITING_FINANCE", label: "Menunggu Keuangan" },
   { value: "NEEDS_REVISION", label: "Perlu Revisi" },
   { value: "APPROVED", label: "Disetujui" },
@@ -94,8 +92,29 @@ export default function SubmissionsPage() {
   );
 
   useEffect(() => {
-    fetchSubmissions(1, "", "");
-  }, [fetchSubmissions]);
+    let active = true;
+
+    async function loadInitialSubmissions() {
+      try {
+        const res = await api.get<{
+          data: SubmissionListItem[];
+          pagination: PaginationInfo;
+        }>("/api/submissions?page=1&pageSize=15");
+        if (!active) return;
+        setSubmissions(res.data);
+        setPagination(res.pagination);
+      } catch (err) {
+        console.error("Gagal memuat daftar pengajuan", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadInitialSubmissions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function handleSearchSubmit(e: React.SubmitEvent) {
     e.preventDefault();

@@ -225,7 +225,7 @@ export default function NewSubmissionPage() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Lengkapi rincian kebutuhan barang dan lampiran penawaran harga
-            sebelum dikirimkan ke workflow approval.
+            sebelum dikirimkan ke proses approval.
           </p>
         </div>
       </div>
@@ -258,8 +258,7 @@ export default function NewSubmissionPage() {
             ))}
           </select>
           <p className="text-[11px] text-slate-400 mt-1">
-            Kategori menentukan alur rantai persetujuan dan verifikator teknis
-            yang bertugas.
+            Kategori digunakan untuk mengelompokkan kebutuhan pengadaan.
           </p>
         </div>
 
@@ -287,7 +286,7 @@ export default function NewSubmissionPage() {
               ))}
             </select>
             <p id="requesting-unit-help" className="text-[11px] text-slate-400 mt-1">
-              Pengajuan Manager langsung diteruskan ke tahap approval berikutnya.
+              Pengajuan Manager langsung diteruskan kepada Approver Keuangan.
             </p>
           </div>
         )}

@@ -13,9 +13,9 @@ tanggal: "2026-10-22"
 
 Proses saat ini masih menggunakan dokumen kertas yang berpindah antar unit dan antar gedung. Pengajuan dari Kepala Unit atau Supervisor diteruskan melalui sejumlah pihak untuk mendapatkan persetujuan dan pertimbangan sebelum pembelian dapat dilakukan. Kondisi ini menyebabkan proses lambat, sulit dipantau, tidak paperless, dan berisiko membuat pengadaan terlambat.
 
-Office Approval akan menyediakan proses digital dari pembuatan pengajuan sampai keputusan akhir. Pengajuan dibuat oleh Kepala Unit atau Supervisor, disetujui oleh Manager yang membawahi unit tersebut, kemudian otomatis diarahkan kepada pemberi pertimbangan berdasarkan kategori barang, dan selanjutnya diteruskan kepada pihak keuangan sebagai approver.
+Office Approval akan menyediakan proses digital dari pembuatan pengajuan sampai keputusan akhir. Pengajuan dibuat oleh Kepala Unit atau Supervisor, disetujui oleh Manager yang membawahi unit tersebut, lalu diteruskan kepada Approver Keuangan. Approver yang sedang memproses dapat meminta pertimbangan teknis bila diperlukan.
 
-Sistem harus menggunakan workflow yang dapat dikonfigurasi sehingga perubahan approver, pemberi pertimbangan, kategori barang, atau struktur organisasi tidak memerlukan perubahan kode aplikasi.
+Pertimbangan bersifat opsional, tidak mengubah urutan approval, dan tidak ditentukan berdasarkan kategori barang.
 
 Target utama produk adalah:
 
@@ -173,10 +173,10 @@ Pemberi pertimbangan **bukan approver final**.
 
 Tanggung jawab:
 
-- melakukan approval sesuai workflow;
+- melakukan approval sesuai urutan yang berlaku;
 - menyetujui;
 - menolak;
-- meminta revisi jika workflow mengizinkan.
+- meminta revisi.
 
 ### Persona P-05 — TU / Umum
 
@@ -196,8 +196,6 @@ Tanggung jawab:
 - mengelola role;
 - mengelola unit;
 - mengelola kategori;
-- mengatur workflow;
-- menentukan approver dan pemberi pertimbangan.
 
 ## 4.2 User Stories
 
@@ -228,10 +226,6 @@ Sebagai pemohon, saya ingin memperbaiki pengajuan yang belum mendapatkan approva
 ### US-07
 
 Sebagai TU/Umum, saya ingin melihat pengajuan dan histori proses agar fungsi pengarsipan dapat dilakukan secara digital.
-
-### US-08
-
-Sebagai Superadmin, saya ingin mengatur workflow tanpa mengubah kode aplikasi agar perubahan organisasi dapat diterapkan dengan cepat.
 
 ### US-09
 
@@ -386,40 +380,14 @@ Setiap pengajuan **harus** terlebih dahulu diarahkan kepada Manager yang membawa
 
 ---
 
-### FR-010 — Routing Pemberi Pertimbangan
+### FR-010 — Pertimbangan Opsional
 
-Sistem **harus** menentukan pemberi pertimbangan secara otomatis berdasarkan kategori pengajuan.
+Approver yang sedang memproses pengajuan **dapat** meminta pertimbangan kepada pengguna aktif dengan role Pemberi Pertimbangan.
 
-**Prioritas:** P0  
-**Terkait:** US-04, US-08, G-02
-
-**Acceptance Criteria**
-
-**Given** Manager Unit menyetujui pengajuan  
-**When** kategori pengajuan memiliki pemberi pertimbangan aktif  
-**Then** sistem mengirim pengajuan kepada pemberi pertimbangan yang dikonfigurasi.
-
----
-
-### FR-011 — Workflow Dinamis
-
-Superadmin **harus** dapat mengubah urutan workflow, approver, dan pemberi pertimbangan tanpa mengubah source code.
+Permintaan pertimbangan tidak mengubah status, tidak memindahkan pengajuan ke pihak lain, dan tidak menghalangi approver memberikan keputusan.
 
 **Prioritas:** P0  
-**Terkait:** US-08
-
----
-
-### FR-012 — Workflow per Kategori
-
-Sistem **harus** mendukung workflow yang berbeda untuk setiap kategori pengajuan.
-
-**Prioritas:** P0  
-**Terkait:** US-08
-
-Contoh:
-
-`Perangkat TI → Manager Unit → Manager TI sebagai pertimbangan → Approval Keuangan`
+**Terkait:** US-04, US-05, G-02
 
 ---
 
@@ -445,7 +413,7 @@ Manager Unit **harus** dapat memilih tindakan setuju, tolak, atau revisi terhada
 
 ### FR-015 — Approval Keuangan
 
-Approver keuangan **harus** dapat menyetujui, menolak, atau meminta revisi sesuai konfigurasi workflow.
+Approver keuangan **harus** dapat menyetujui, menolak, atau meminta revisi.
 
 **Prioritas:** P0  
 **Terkait:** US-05, G-02
@@ -724,15 +692,15 @@ Approval Keuangan
 Selesai: Disetujui
 ```
 
-## 7.2 Prinsip Workflow
+## 7.2 Prinsip Approval
 
-Workflow harus memisahkan tiga konsep:
+Sistem memisahkan tiga konsep:
 
 **Approval**  
 Keputusan yang menentukan apakah pengajuan dapat melanjutkan proses.
 
 **Pertimbangan**  
-Catatan profesional/teknis dari pihak terkait tanpa menjadi approval final.
+Catatan profesional/teknis opsional dari pihak terkait tanpa menjadi approval final atau tahapan wajib.
 
 **Administrasi/Arsip**  
 Akses untuk TU/Umum tanpa kewenangan mengubah keputusan.
@@ -751,7 +719,6 @@ Versi pertama minimal memiliki:
 8. Manajemen User.
 9. Manajemen Unit.
 10. Manajemen Kategori.
-11. Manajemen Workflow.
 
 ---
 
@@ -831,31 +798,15 @@ Minimal:
 - keterangan;
 - spesifikasi.
 
-### Workflow
+### SubmissionStep
 
 Minimal:
 
 - id;
-- nama;
-- categoryId;
-- status.
-
-### WorkflowStep
-
-Minimal:
-
-- id;
-- workflowId;
+- submissionId;
 - urutan;
-- tipe;
-- targetRole atau targetUser;
-- wajib/tidak wajib;
+- target Manager Unit atau role Approver Keuangan;
 - status.
-
-Tipe step minimal:
-
-- APPROVAL;
-- REVIEW/CONSIDERATION.
 
 ### ApprovalAction
 
@@ -863,7 +814,7 @@ Minimal:
 
 - id;
 - submissionId;
-- workflowStepId;
+- submissionStepId;
 - actorId;
 - action;
 - catatan;
@@ -904,10 +855,8 @@ Mekanisme soft delete atau kebijakan retensi **[PERLU KONFIRMASI]**.
 ## 9.1 Asumsi
 
 - Setiap Kepala Unit/Supervisor memiliki Manager Unit yang dapat ditentukan di sistem.
-- Setiap kategori dapat dipetakan ke pemberi pertimbangan.
 - Pengguna memiliki akses browser.
-- Struktur workflow dapat berubah setelah aplikasi berjalan.
-- Tahap keputusan keuangan dapat berbeda sesuai konfigurasi.
+- Urutan approval adalah Manager Unit lalu Approver Keuangan.
 
 ## 9.2 Dependensi
 
@@ -915,9 +864,7 @@ Mekanisme soft delete atau kebijakan retensi **[PERLU KONFIRMASI]**.
 - struktur unit;
 - hubungan unit dengan Manager;
 - daftar kategori barang;
-- daftar pemberi pertimbangan;
 - daftar approver keuangan;
-- konfigurasi workflow.
 
 ## 9.3 Batasan
 
@@ -937,10 +884,10 @@ Mekanisme soft delete atau kebijakan retensi **[PERLU KONFIRMASI]**.
 | ---- | ---------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
 | R-01 | Approver lambat melakukan tindakan | Target 1 hari kerja tidak tercapai            | Inbox approval, status pending, notifikasi, dan dashboard waktu approval |
 | R-02 | Data pengajuan hilang              | Proses pengadaan kehilangan bukti dan histori | Database persisten, backup, audit trail, dan uji recovery                |
-| R-03 | Workflow salah konfigurasi         | Pengajuan masuk ke pihak yang salah           | Validasi konfigurasi workflow dan pengujian sebelum diaktifkan           |
+| R-03 | Routing approval salah             | Pengajuan masuk ke pihak yang salah           | Validasi Manager Unit dan role Approver Keuangan                         |
 | R-04 | User tetap memakai kertas          | Target paperless tidak tercapai               | Pilot, sosialisasi, dan kebijakan penggunaan sistem                      |
 | R-05 | Sistem down                        | Pengajuan tidak dapat diproses                | Fallback sementara menggunakan kertas dan proses recovery                |
-| R-06 | Perubahan struktur organisasi      | Workflow tidak sesuai                         | Workflow, user, unit, dan approver dibuat configurable                   |
+| R-06 | Perubahan struktur organisasi      | Routing approval tidak sesuai                 | Kelola user, unit, Manager Unit, dan Approver Keuangan                   |
 | R-07 | Target pengembangan terlalu pendek | Fitur inti tidak stabil                       | Prioritaskan seluruh P0 sebelum fitur P1                                 |
 | R-08 | Deployment belum diputuskan        | Risiko keterlambatan produksi                 | Tentukan environment produksi sebelum pilot berakhir                     |
 
@@ -959,7 +906,6 @@ Fokus:
 - unit;
 - kategori;
 - form pengajuan;
-- struktur workflow;
 - approval Manager Unit;
 - pemberi pertimbangan;
 - approval keuangan.
@@ -974,7 +920,7 @@ Fokus:
 - notifikasi;
 - dashboard;
 - arsip TU/Umum;
-- pengujian workflow;
+- pengujian routing approval;
 - pengujian data;
 - persiapan deployment.
 
@@ -1026,11 +972,7 @@ Pengajuan kertas yang dibuat selama downtime sebaiknya dimasukkan kembali ke sis
 
 **OQ-06** — Apakah nominal pembelian nantinya menentukan level approver?
 
-**OQ-07** — Apakah Manager Keuangan dan Wakil Direktur Keuangan selalu berurutan atau dapat dipilih berdasarkan workflow?
-
-**OQ-08** — Apakah sebuah kategori dapat memiliki lebih dari satu pemberi pertimbangan?
-
-**OQ-09** — Apakah pertimbangan harus diberikan sebelum pengajuan dapat masuk ke approval keuangan?
+**OQ-07** — Apakah Manager Keuangan dan Wakil Direktur Keuangan menggunakan role Approver Keuangan yang sama?
 
 **OQ-10** — Jam kerja dan hari kerja apa yang digunakan untuk menghitung target maksimal 1 hari kerja?
 
@@ -1051,7 +993,7 @@ Pertanyaan terbuka di atas tidak menghalangi dimulainya development MVP, kecuali
 # 13. Glosarium
 
 **Approval**  
-Tindakan menyetujui atau menolak pengajuan yang memengaruhi kelanjutan workflow.
+Tindakan menyetujui atau menolak pengajuan yang memengaruhi kelanjutan proses approval.
 
 **Approver**  
 Pengguna yang memiliki kewenangan memberikan approval.
@@ -1068,12 +1010,6 @@ Manager yang membawahi unit pemohon dan memberikan approval pertama.
 **TU/Umum**  
 Pihak administratif yang memiliki fungsi arsip dan monitoring, bukan approval.
 
-**Workflow**  
-Urutan tahapan yang harus dilewati sebuah pengajuan.
-
-**Workflow Step**  
-Satu tahapan di dalam workflow.
-
 **Paperless**  
 Pengajuan diproses tanpa dokumen kertas selama Office Approval dalam kondisi normal.
 
@@ -1081,10 +1017,10 @@ Pengajuan diproses tanpa dokumen kertas selama Office Approval dalam kondisi nor
 Catatan kronologis tindakan pengguna terhadap pengajuan.
 
 **Approval Final**  
-Keputusan terakhir pada workflow yang menyebabkan pengajuan berstatus Disetujui atau Ditolak.
+Keputusan terakhir pada proses approval yang menyebabkan pengajuan berstatus Disetujui atau Ditolak.
 
 **Pending**  
-Pengajuan yang masih menunggu tindakan pada salah satu tahap workflow.
+Pengajuan yang masih menunggu tindakan pada salah satu tahap approval.
 
 ---
 
@@ -1131,16 +1067,15 @@ Peran telah dipisahkan menjadi:
 
 Bagian yang paling membutuhkan validasi saat development adalah:
 
-1. bentuk workflow Manager Keuangan dan Wakil Direktur Keuangan;
-2. aturan kategori → pemberi pertimbangan;
-3. kemungkinan workflow berdasarkan nominal pembelian;
-4. database dan deployment produksi;
-5. strategi backup dan recovery;
-6. definisi SLA 1 hari kerja;
-7. detail field form pengajuan.
+1. pembagian role Manager Keuangan dan Wakil Direktur Keuangan;
+2. kemungkinan level approver berdasarkan nominal pembelian;
+3. database dan deployment produksi;
+4. strategi backup dan recovery;
+5. definisi SLA 1 hari kerja;
+6. detail field form pengajuan.
 
 ### Kesimpulan Review
 
-PRD sudah cukup untuk memulai pengembangan **Office Approval MVP**, khususnya desain database, autentikasi, pengajuan, dynamic workflow, approval, pertimbangan, audit trail, notifikasi, dan dashboard.
+PRD sudah cukup untuk memulai pengembangan **Office Approval MVP**, khususnya desain database, autentikasi, pengajuan, approval tetap, pertimbangan opsional, audit trail, notifikasi, dan dashboard.
 
 Prioritas engineering harus diberikan kepada requirement **P0** dan perlindungan terhadap kehilangan data sebelum rollout penuh.

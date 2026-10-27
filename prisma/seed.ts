@@ -58,37 +58,12 @@ const categoryNames = [
 ];
 
 for (const categoryName of categoryNames) {
-  const category = await prisma.category.upsert({
+  await prisma.category.upsert({
     where: { name: categoryName },
     update: { status: "ACTIVE" },
     create: { name: categoryName },
   });
 
-  await prisma.workflow.upsert({
-    where: { categoryId: category.id },
-    update: { name: `Workflow ${categoryName}`, status: "ACTIVE" },
-    create: {
-      name: `Workflow ${categoryName}`,
-      categoryId: category.id,
-      steps: {
-        create: [
-          {
-            order: 1,
-            type: "APPROVAL",
-            targetType: "UNIT_MANAGER",
-            allowRevision: true,
-          },
-          {
-            order: 2,
-            type: "APPROVAL",
-            targetType: "ROLE",
-            targetRole: "FINANCE_APPROVER",
-            allowRevision: true,
-          },
-        ],
-      },
-    },
-  });
 }
 
 await prisma.$disconnect();

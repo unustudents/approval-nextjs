@@ -21,12 +21,7 @@ enum RecordStatus {
   INACTIVE
 }
 
-enum WorkflowStepType {
-  APPROVAL
-  CONSIDERATION
-}
-
-enum WorkflowTargetType {
+enum ApprovalTargetType {
   UNIT_MANAGER
   ROLE
   USER
@@ -35,18 +30,15 @@ enum WorkflowTargetType {
 enum SubmissionStatus {
   DRAFT
   WAITING_UNIT_MANAGER
-  WAITING_CONSIDERATION
-  WAITING_APPROVAL
   WAITING_FINANCE
   NEEDS_REVISION
   APPROVED
   REJECTED
 }
 
-enum WorkflowStepStatus {
+enum ApprovalStepStatus {
   PENDING
   COMPLETED
-  SKIPPED
 }
 
 enum ApprovalActionType {
@@ -60,7 +52,6 @@ enum ApprovalActionType {
   RESUBMITTED
   SUBMITTED
   EDITED
-  SKIPPED
 }
 
 enum NotificationType {
@@ -92,7 +83,6 @@ model User {
   submissions     Submission[]         @relation("RequesterSubmissions")
   actions         ApprovalAction[]
   notifications   Notification[]
-  workflowTargets WorkflowStep[]       @relation("WorkflowUserTarget")
   runStepTargets  SubmissionStep[]
   revisions       SubmissionRevision[]
   uploadedFiles   Attachment[]
@@ -153,41 +143,9 @@ model Category {
   id          String       @id @default(uuid())
   name        String       @unique @db.VarChar(120)
   status      RecordStatus @default(ACTIVE)
-  workflow    Workflow?
   submissions Submission[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-}
-
-model Workflow {
-  id         String         @id @default(uuid())
-  name       String         @db.VarChar(120)
-  status     RecordStatus   @default(ACTIVE)
-  categoryId String         @unique
-  category   Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  steps      WorkflowStep[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-}
-
-model WorkflowStep {
-  id            String             @id @default(uuid())
-  workflowId    String
-  workflow      Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  order         Int
-  type          WorkflowStepType
-  targetType    WorkflowTargetType
-  targetRole    Role?
-  targetUserId  String?
-  targetUser    User?              @relation("WorkflowUserTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
-  required      Boolean            @default(true)
-  allowRevision Boolean            @default(false)
-  runSteps      SubmissionStep[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-
-  @@unique([workflowId, order])
-  @@index([workflowId, order])
 }
 
 model Submission {
@@ -203,7 +161,7 @@ model Submission {
   currentStepId String?
   currentStep   SubmissionStep?      @relation("CurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
   items         SubmissionItem[]
-  workflowSteps SubmissionStep[]     @relation("SubmissionSteps")
+  approvalSteps SubmissionStep[]     @relation("ApprovalSteps")
   actions       ApprovalAction[]
   revisions     SubmissionRevision[]
   attachments   Attachment[]
@@ -241,19 +199,14 @@ model SubmissionItem {
 model SubmissionStep {
   id             String             @id @default(uuid())
   submissionId   String
-  submission     Submission         @relation("SubmissionSteps", fields: [submissionId], references: [id], onDelete: Cascade)
+  submission     Submission         @relation("ApprovalSteps", fields: [submissionId], references: [id], onDelete: Cascade)
   currentFor     Submission?        @relation("CurrentStep")
-  workflowStepId String?
-  workflowStep   WorkflowStep?      @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
   order          Int
-  type           WorkflowStepType
-  targetType     WorkflowTargetType
+  targetType     ApprovalTargetType
   targetRole     Role?
   targetUserId   String?
   targetUser     User?              @relation(fields: [targetUserId], references: [id], onDelete: Restrict)
-  required       Boolean            @default(true)
-  allowRevision  Boolean            @default(false)
-  status         WorkflowStepStatus @default(PENDING)
+  status         ApprovalStepStatus @default(PENDING)
   actions        ApprovalAction[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
