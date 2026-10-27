@@ -65,13 +65,14 @@ export async function updateUser(actor: SessionUser, id: string, input: { userna
     if (!unit) throw notFound();
   }
   const passwordHash = input.password ? await hash(input.password, 12) : undefined;
+  const usernameChanged = input.username !== undefined && input.username !== target.username;
   return prisma.$transaction(async (tx) => {
     const updated = await tx.user.update({
       where: { id },
       data: { username: input.username, name: input.name, passwordHash, status: input.status, unitId: input.unitId, ...(input.roles ? { roles: { deleteMany: {}, create: input.roles.map((role) => ({ role })) } } : {}) },
       select: { id: true },
     });
-    if (input.username || passwordHash || input.roles || input.status) await tx.session.deleteMany({ where: { userId: id } });
+    if (usernameChanged || passwordHash || input.roles || input.status) await tx.session.deleteMany({ where: { userId: id } });
     return updated;
   });
 }

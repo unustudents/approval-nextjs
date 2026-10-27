@@ -19,6 +19,7 @@ export function UsersManagement({ users, units }: UsersManagementProps) {
   const [unitId, setUnitId] = useState("");
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [editError, setEditError] = useState("");
+  const [editUsername, setEditUsername] = useState("");
   const [editName, setEditName] = useState("");
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [editStatus, setEditStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
@@ -31,7 +32,7 @@ export function UsersManagement({ users, units }: UsersManagementProps) {
   }
 
   function resetEditForm() {
-    setEditUser(null); setEditError(""); setEditName(""); setEditRoles([]); setEditStatus("ACTIVE"); setEditUnitId(""); setEditPassword("");
+    setEditUser(null); setEditError(""); setEditUsername(""); setEditName(""); setEditRoles([]); setEditStatus("ACTIVE"); setEditUnitId(""); setEditPassword("");
   }
 
   useLayoutEffect(() => () => { resetCreateForm(); resetEditForm(); }, []);
@@ -41,7 +42,7 @@ export function UsersManagement({ users, units }: UsersManagementProps) {
   }
 
   function openEdit(user: AdminUser) {
-    setEditError(""); setEditUser(user); setEditName(user.name); setEditRoles(user.roles.map((assignment) => assignment.role)); setEditStatus(user.status); setEditUnitId(user.unit?.id ?? ""); setEditPassword("");
+    setEditError(""); setEditUser(user); setEditUsername(user.username); setEditName(user.name); setEditRoles(user.roles.map((assignment) => assignment.role)); setEditStatus(user.status); setEditUnitId(user.unit?.id ?? ""); setEditPassword("");
   }
 
   function handleCreate(event: React.FormEvent<HTMLFormElement>) {
@@ -55,7 +56,7 @@ export function UsersManagement({ users, units }: UsersManagementProps) {
   function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!editUser) return; setEditError("");
     startTransition(async () => {
-      const result = await updateUserAction(editUser.id, { name: editName, roles: editRoles, status: editStatus, unitId: editUnitId || null, ...(editPassword ? { password: editPassword } : {}) });
+      const result = await updateUserAction(editUser.id, { username: editUsername, name: editName, roles: editRoles, status: editStatus, unitId: editUnitId || null, ...(editPassword ? { password: editPassword } : {}) });
       if (result.ok) resetEditForm(); else setEditError(result.message);
     });
   }
@@ -70,7 +71,7 @@ export function UsersManagement({ users, units }: UsersManagementProps) {
     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs"><div className="relative flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" aria-hidden="true" /><label className="sr-only" htmlFor="user-search">Cari pengguna</label><input id="user-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari berdasarkan username, nama lengkap, atau unit kerja..." className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-9 pr-3 text-xs" /></div></div>
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs"><div className="overflow-x-auto">{filteredUsers.length === 0 ? <div className="p-12 text-center text-xs text-slate-500">Tidak ada pengguna yang sesuai</div> : <table className="w-full text-left text-xs"><thead className="border-b border-slate-200 bg-slate-50 font-semibold uppercase tracking-wider text-slate-600"><tr><th className="px-4 py-3">Username</th><th className="px-4 py-3">Nama Lengkap</th><th className="px-4 py-3">Peran (Role)</th><th className="px-4 py-3">Unit Kerja</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Aksi</th></tr></thead><tbody className="divide-y divide-slate-100 text-slate-700">{filteredUsers.map((user) => <tr key={user.id} className="hover:bg-slate-50/80"><td className="px-4 py-3 font-mono font-medium text-slate-900">{user.username}</td><td className="px-4 py-3 font-semibold text-slate-900">{user.name}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-1">{user.roles.map(({ role }) => <span key={role} className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-800">{roleDisplayName(role)}</span>)}</div></td><td className="px-4 py-3 text-slate-600">{user.unit?.name ?? <span className="italic text-slate-400">-</span>}</td><td className="px-4 py-3">{user.status === "ACTIVE" ? <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Aktif</span> : <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"><XCircle className="h-3 w-3" aria-hidden="true" />Nonaktif</span>}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => openEdit(user)} className="inline-flex items-center gap-1 text-xs font-semibold text-[#1E3A5F] hover:underline"><Edit2 className="h-3.5 w-3.5" aria-hidden="true" />Edit</button></td></tr>)}</tbody></table>}</div></div>
     {createOpen && <UserDialog title="Tambah Akun Pengguna" error={createError}><form onSubmit={handleCreate} className="space-y-3.5"><TextField id="create-username" label="Username" value={username} onChange={setUsername} placeholder="misal: ahmad.fauzi" required /><TextField id="create-name" label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama lengkap beserta gelar jika ada" required /><TextField id="create-password" label="Password (Min 4 Karakter)" value={password} onChange={setPassword} type="password" required /><RoleAndUnit roles={roles} setRoles={setRoles} unitId={unitId} setUnitId={setUnitId} units={units} toggleRole={toggleRole} idPrefix="create" /><DialogActions pending={isPending} onCancel={resetCreateForm} submitLabel="Simpan Pengguna" /></form></UserDialog>}
-    {editUser && <UserDialog title={`Ubah Pengguna: ${editUser.username}`} error={editError}><form onSubmit={handleUpdate} className="space-y-3.5"><TextField id="edit-name" label="Nama Lengkap" value={editName} onChange={setEditName} required /><RoleAndUnit roles={editRoles} setRoles={setEditRoles} unitId={editUnitId} setUnitId={setEditUnitId} units={units} toggleRole={toggleRole} idPrefix="edit" status={editStatus} setStatus={setEditStatus} /><TextField id="edit-password" label="Ganti Password (Kosongkan jika tidak diubah)" value={editPassword} onChange={setEditPassword} type="password" placeholder="Min 4 karakter jika ingin mengubah" /><DialogActions pending={isPending} onCancel={resetEditForm} submitLabel="Perbarui Pengguna" /></form></UserDialog>}
+    {editUser && <UserDialog title={`Ubah Pengguna: ${editUser.username}`} error={editError}><form onSubmit={handleUpdate} className="space-y-3.5"><TextField id="edit-username" label="Username" value={editUsername} onChange={setEditUsername} required /><TextField id="edit-name" label="Nama Lengkap" value={editName} onChange={setEditName} required /><RoleAndUnit roles={editRoles} setRoles={setEditRoles} unitId={editUnitId} setUnitId={setEditUnitId} units={units} toggleRole={toggleRole} idPrefix="edit" status={editStatus} setStatus={setEditStatus} /><TextField id="edit-password" label="Ganti Password (Kosongkan jika tidak diubah)" value={editPassword} onChange={setEditPassword} type="password" placeholder="Min 4 karakter jika ingin mengubah" /><DialogActions pending={isPending} onCancel={resetEditForm} submitLabel="Perbarui Pengguna" /></form></UserDialog>}
   </div>;
 }
 

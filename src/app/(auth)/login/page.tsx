@@ -61,7 +61,12 @@ export default function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white py-8 px-6 sm:px-10 shadow-xs border border-slate-200 rounded-xl">
-          <form className="space-y-5" onSubmit={handleLogin} noValidate>
+          <form
+            className="space-y-5"
+            onSubmit={handleLogin}
+            noValidate
+            autoComplete="off"
+          >
             {errorMsg && (
               <div
                 className="flex items-start gap-2.5 p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs"
@@ -87,7 +92,7 @@ export default function LoginPage() {
                   id="username"
                   name="username"
                   type="text"
-                  autoComplete="username"
+                  autoComplete="off"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -112,7 +117,7 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="off"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

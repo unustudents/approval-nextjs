@@ -4,7 +4,7 @@ import { getApprovalStats } from "./_lib/stats";
 
 export async function GET() {
   return handleApi(async () => {
-    await requireSession();
-    return getApprovalStats();
+    const user = await requireSession();
+    return getApprovalStats(user);
   });
 }

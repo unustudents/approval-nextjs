@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AppShell } from "./_components/AppShell";
 import { getSession } from "@/lib/session";
 
+export const instant = false;
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={null}>

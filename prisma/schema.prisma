@@ -176,6 +176,7 @@ model Submission {
 
   @@unique([currentStepId])
   @@index([requesterId, createdAt])
+  @@index([requesterId, status])
   @@index([unitId, status, createdAt])
   @@index([categoryId, status])
   @@index([status, submittedAt])
